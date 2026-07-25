@@ -3,6 +3,10 @@
 [![CI](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml/badge.svg)](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<p align="center">
+  <img src="docs/demo.svg" alt="A hijacked coding agent tries to force-push main, rm -rf the repo, leak a secret and wipe CI; agent-guardrail blocks every one while the real fix goes through" width="760">
+</p>
+
 **A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell` / `write_file` / `git` call is checked before it executes. It stops the actions that wreck a repository (force-pushing `main`, `rm -rf` the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave. As a bonus, its git-branch sub-policy is machine-checked by z3, which is a property almost no guardrail has: the policy can check itself for gaps. Everything else is high-precision heuristics, and this README is explicit about which is which.**
 
 Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model: it checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
