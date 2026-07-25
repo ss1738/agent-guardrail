@@ -8,6 +8,9 @@ license = { text = "MIT" }
 authors = [{ name = "Satyawan Singh" }]
 dependencies = ["z3-solver>=4.12"]
 
+[project.optional-dependencies]
+mcp = ["mcp>=1.0"]
+
 [project.urls]
 Homepage = "https://github.com/ss1738/agent-guardrail"
 

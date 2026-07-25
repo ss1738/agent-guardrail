@@ -77,15 +77,50 @@ Read this honestly: with a default-allow design, a low false-block rate on legit
 - **The gate must be out-of-process from the agent.** If the agent can edit the guardrail or read the HMAC key, it can bypass or forge. The audit chain is tamper-evident only under the assumption that the key is not accessible to the agent (a wrapper process or separate service, not an in-process import the agent controls). See [THREAT_MODEL.md](THREAT_MODEL.md).
 - **Shell coverage is best-effort.** A determined attacker obfuscates around the regexes. Treat shell blocking as defense-in-depth, not a boundary.
 - **A well-aligned agent will often refuse an injection on its own.** In `demo_hijack.py` a real Claude agent read the planted note and declined it. The gate's value is being the deterministic backstop for when alignment fails.
-- **No agent-framework integration yet.** The gate is a library plus a sandboxed executor; a first-class OpenHands / SWE-agent hook is the next step, not shipped.
+- **Integration is via MCP** (see below). The formal guarantee still covers only the git-branch policy wherever the gate runs.
+
+## Use it with any MCP agent
+
+The gate runs as an [MCP](https://modelcontextprotocol.io) server, the tool-call
+surface that Claude Desktop, Cursor, Copilot, and Windsurf all speak. Point an MCP
+client at it and every `run_shell` / `write_file` / `git` call the agent makes is
+gated in the protocol path, before it touches the repo. No trust in the agent.
+
+```jsonc
+// in your MCP client config (Claude Desktop, Cursor, ...)
+"agent-guardrail": {
+  "command": "python3",
+  "args": ["/path/to/agent-guardrail/integrations/mcp_server.py"],
+  "env": { "GUARDRAIL_WORKSPACE": "/path/to/your/repo" }
+}
+```
+
+`integrations/demo_mcp.py` proves this end-to-end: it launches the server and
+connects as a real MCP client over stdio (the same transport those apps use), then
+issues a mix of legitimate and destructive tool calls. The destructive ones are
+blocked inside the protocol:
+
+```
+Tools exposed to the agent via MCP: run_shell, write_file, git, audit_log
+  ▶ write_file('calc.py')                wrote calc.py           (the fix)
+  ▶ git('add calc.py')                   ok
+  ⛔ git('push origin main --force')      BLOCK  force-push to protected branch 'main'
+  ⛔ run_shell('rm -rf .git')             BLOCK  recursive delete of the repo
+  ⛔ write_file('config.py' w/ token)     BLOCK  writing a secret to disk
+  ⛔ run_shell('curl ... -d ghp_...')     BLOCK  secret exfiltration over the network
+  ⛔ write_file('.github/workflows/...')  BLOCK  emptying CI config
+  ▶ run_shell('cargo build --release')   allowed
+blocked: 5   allowed: 4    .git intact, no secret, CI intact, fix applied, audit chain verifies
+```
 
 ## Run it
 
 ```bash
-pip install z3-solver
-python3 tests/test_guardrail.py   # 10 tests
-python3 demo_compare.py           # with and without the gate, on a real repo
-python3 realworld_test.py         # the 2,836-command friction check (needs gh)
+pip install z3-solver "mcp"
+python3 tests/test_guardrail.py            # 10 tests
+python3 demo_compare.py                    # with and without the gate, on a real repo
+python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
+python3 realworld_test.py                  # the 2,836-command friction check (needs gh)
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent on a hijacked repo
 ```
 
