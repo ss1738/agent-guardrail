@@ -82,9 +82,22 @@ the same 2,836 commands again:
 v0.1:  false blocks 0,  escalations 0,  allows 100%
 ```
 
-Zero false positives on real commands, and every attack in the demo still blocked.
+Zero false positives on those commands, and every attack in the demo still blocked.
 Both former false positives are now regression tests. I did not tune to a test
 set. I fixed the design and the same real corpus confirmed it.
+
+Then, to check for selection bias in my own 12 repos, I ran it again on a bigger,
+not-hand-picked sample: 3,790 real commands from 49 of the most-starred repos
+across 9 languages (react, next.js, tensorflow, ollama, godot, deno, rust and
+more), gathered by search rank rather than chosen. That sample earned its keep. It
+caught four false positives the small one missed: `rm -f ../private.key` and
+`rm -rf ./bin/build_deps`, a specific file and a sub-path, which my rm rule was
+over-matching as repo destruction. I bound the rule to the whole argument, so bare
+`.` / `..` / `/` / `.git` still block but a specific path does not, added four
+regression tests, and re-ran the 3,790 commands: zero false blocks, every attack
+still caught. The point is not that it was right the first time. The point is that
+it was tested on code it did not choose, and the failures that found got fixed
+rather than hidden.
 
 ## Scope, stated plainly
 
@@ -112,7 +125,8 @@ boundary. Full threat model is in the repo.
 ```
 pip install z3-solver
 python3 demo_compare.py            # with and without the guardrail, on a real repo
-python3 realworld_test.py          # the 2,836 command validation
+python3 realworld_test.py                # the friction check on real commands
+python3 scripts/expanded_realworld.py    # the same, on 49 search-ranked repos
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real agent on a hijacked repo
 ```
 
