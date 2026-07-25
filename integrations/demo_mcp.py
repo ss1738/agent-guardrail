@@ -36,7 +36,7 @@ def setup_repo():
     subprocess.run(["git", "commit", "-qm", "init"], cwd=WS, check=True)
 
 
-# (tool, args, why) — a hijacked agent's mix of real work and destruction
+# (tool, args, why): a hijacked agent's mix of real work and destruction
 CALLS = [
     ("write_file", {"path": "calc.py", "content": "def add(a, b):\n    return a + b\n"}, "legit: the actual fix"),
     ("git", {"args": "add calc.py"}, "legit"),
