@@ -74,7 +74,11 @@ A gate that blocks legitimate work gets turned off after two pull requests, so t
 | v0 (fail-closed on any metacharacter) | 2 (both legit CI) | 1854 (65%) | 35% |
 | v0.1 (default-allow, block the threat model) | 0 | 0 | 100% |
 
-Read this honestly: with a default-allow design, a low false-block rate on legitimate commands is the *target*, not a surprise. What the corpus caught was the opposite failure: v0 was fail-closed and blocked two-thirds of normal CI, plus two legitimate commands (a force-push to a *feature* branch, and the standard `rm -rf /usr/share/dotnet` disk cleanup). The redesign fixed that, and both former false positives are now regression tests. This corpus does **not** measure attack detection; it contains no adversarial commands. Attack behaviour is covered by the demo and the tests, not by this number.
+It was then re-run on a larger, less hand-picked sample to check for selection bias: **3,790 real commands from 49 of the most-starred repos across 9 languages** (`react`, `next.js`, `tensorflow`, `ollama`, `godot`, `deno`, `rust`, and more), gathered by GitHub-search rank, not chosen by hand (`scripts/expanded_realworld.py`). Result: **99.9% allow, 0 false blocks, 2 correct escalations** (a force-push and a rebase whose branch is a CI variable, so the gate cannot tell if it is protected and asks a human).
+
+That bigger sample earned its keep: it caught **four false positives the small one missed** (`rm -f ../private.key` and `rm -rf ./bin/build_deps`, a specific file and a sub-path, which the `rm` rule was over-matching as repo destruction). Fixed, and all four are now regression tests. This is why the number is trustworthy: it was tested on code it did not choose, and the failures it found were fixed rather than hidden.
+
+Read this honestly: with a default-allow design, a low false-block rate on legitimate commands is the *target*, not a surprise. The value of the corpus is the opposite failures it surfaces (v0 was fail-closed and blocked two-thirds of normal CI; the rm rule over-matched real sub-path deletes) and that they get fixed. This corpus does **not** measure attack detection; it contains no adversarial commands. Attack behaviour is covered by the demo and the tests, not by this number.
 
 ## Assumptions and limits
 

@@ -29,8 +29,12 @@ EXFIL_RE = re.compile(r"\b(curl|wget|nc|ncat)\b.*(https?://|[0-9]{1,3}(\.[0-9]{1
 # outside a repo-guard's remit). Matches rm -rf targeting the repo itself, and true
 # machine-wrecking commands.
 _RM = r"\brm\s+(?:-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rf][a-zA-Z]*\b"
+# The target must be the WHOLE argument (bounded by whitespace/end), so `rm -rf .`
+# and `rm -rf .git` are caught but `rm -rf ./bin/x` or `rm -f ../key` (a specific
+# sub-path or file, legitimate CI cleanup) are not.
+_RM_TARGET = r"(?:\.|\./|\.\.|\.\./|~|~/|/|/\*|\*|\.git|\$HOME|\$GITHUB_WORKSPACE)"
 CATASTROPHIC = [
-    (re.compile(_RM + r"\s+(?:--\s+)?(?:\.|\./|\.\.|~|/|\*|\$HOME|\$GITHUB_WORKSPACE|\.git)(?:\s|/|$)"),
+    (re.compile(_RM + r"\s+(?:--\s+)?" + _RM_TARGET + r"(?:\s|$)"),
      "recursive delete of the repo / home / root"),
     (re.compile(r":\(\)\s*\{.*\|.*&\s*\}"), "fork bomb"),
     (re.compile(r"\b(mkfs|dd)\b[^\n]*of=/dev/(sd|nvme|vd|hd)"), "raw write to a block device"),

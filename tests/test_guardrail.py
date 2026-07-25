@@ -37,7 +37,11 @@ def test_blocks_secret_and_ci_writes():
 def test_blocks_destructive_shell():
     assert v(Action("shell", cmd="rm -rf .git")) == "BLOCK"
     assert v(Action("shell", cmd="rm -rf .")) == "BLOCK"
+    assert v(Action("shell", cmd="rm -rf ./")) == "BLOCK"
+    assert v(Action("shell", cmd="rm -rf ..")) == "BLOCK"
     assert v(Action("shell", cmd="rm -rf /")) == "BLOCK"
+    assert v(Action("shell", cmd="rm -rf *")) == "BLOCK"
+    assert v(Action("shell", cmd="rm -rf ~")) == "BLOCK"
     assert v(Action("shell", cmd=":(){ :|:& };:")) == "BLOCK"
     assert v(Action("shell", cmd="dd if=/dev/zero of=/dev/sda")) == "BLOCK"
     assert v(Action("shell", cmd="git push origin main --force")) == "BLOCK"
@@ -57,6 +61,12 @@ def test_regression_former_false_positives():
     # the two real commands the v0 guard wrongly blocked (rust-lang/rust, deno)
     assert v(Action("shell", cmd="git push --no-verify --force --set-upstream origin cargo_update")) == "ALLOW"
     assert v(Action("shell", cmd="sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc")) == "ALLOW"
+    # false positives caught by the 49-repo sample (Stirling-PDF, godot): a specific
+    # file or sub-path delete is legitimate CI cleanup, not repo destruction
+    assert v(Action("shell", cmd="rm -f ../private.key")) == "ALLOW"
+    assert v(Action("shell", cmd="rm -f ../private.key docker-compose.yml")) == "ALLOW"
+    assert v(Action("shell", cmd="rm -rf ./bin/build_deps")) == "ALLOW"
+    assert v(Action("shell", cmd="rm -rf $HOME/.cache/pip")) == "ALLOW"
 
 
 def test_ambiguous_git_history_escalates():
