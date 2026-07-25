@@ -88,16 +88,24 @@ set. I fixed the design and the same real corpus confirmed it.
 
 ## Scope, stated plainly
 
-The guarantee covers a defined threat model, not all possible harm. It blocks
-destruction of the repo, home, and root, secret exfiltration, and protected-branch
-history rewrite, with high precision. It does not police a mass `sed` refactor or a
-`curl | sh` toolchain install, because those are the agent's legitimate job and
-belong in normal review. General shell safety is undecidable, so a raw history
-rewrite that names no branch is escalated to a human, and the full formal guarantee
-lives on the structured git tool-call path that real agents use.
+Be precise about what is proven and what is not, because it is the whole point.
+The z3 proof covers exactly one thing: the structured git-branch policy admits no
+action that rewrites protected history. That is the machine-checked core. The rest
+of the threat model (destruction of the repo, home, and root, secret exfiltration,
+CI wipe) is enforced by high-precision heuristics, not by proof, and those are
+bypassable by a determined obfuscator at the shell (`rm -r -f`, `$IFS`, base64).
+They raise the cost of an accident or a naive injection; they are not a sandbox.
 
-Every decision is appended to a tamper-evident HMAC audit chain, so the record of
-what an agent tried and what was blocked cannot be quietly rewritten.
+It does not police a mass `sed` refactor or a `curl | sh` toolchain install,
+because those are the agent's legitimate job and belong in normal review. This is
+not a linter and not a sandbox. It is an action-level gate for coding agents, with
+a formally checked core for the one sub-policy where a proof is tractable. Run it in
+front of a sandbox (seccomp, gVisor), not instead of one.
+
+Two assumptions carry the guarantee. The gate must run out-of-process from the
+agent, and the HMAC key that makes the audit chain tamper-evident must not be
+readable by the agent. An in-process import the agent controls is not a security
+boundary. Full threat model is in the repo.
 
 ## Run it
 
@@ -110,10 +118,9 @@ ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real agent on a hijacked repo
 
 Code, tests, and the full validation: https://github.com/ss1738/agent-guardrail
 
-This is the same primitive as a verified safety shield for a robot controller,
-proving the filtered action is safe no matter how the policy behaves, pointed at a
-coding agent instead of an actuator. As agents get more autonomous, the
-deterministic self-checking gate is the layer that has to exist.
+As coding agents get more autonomous, a deterministic gate that does not depend on
+the model behaving, and that can check its own core policy for gaps, is a layer
+that has to exist somewhere in the stack. This is one small, honest attempt at it.
 
 I am Satyawan Singh. I work on formal verification and runtime assurance for AI
 systems. Feedback and holes in the policy are welcome, especially holes.

