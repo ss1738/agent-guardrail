@@ -1,7 +1,7 @@
 [project]
 name = "agent-guardrail"
 version = "0.1.0"
-description = "A formally-checked runtime shield for autonomous coding agents — provably blocks destructive tool calls (force-push main, rm -rf, secret exfil) while letting real work through."
+description = "A formally-checked runtime shield for autonomous coding agents. It provably blocks destructive tool calls (force-push main, rm -rf, secret exfil) while letting real work through."
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }

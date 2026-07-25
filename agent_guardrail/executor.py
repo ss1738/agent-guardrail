@@ -1,7 +1,7 @@
 """Sandboxed tool executor. Real git/file/shell operations, but every call passes
 through the Guardrail first; a BLOCK/ESCALATE is never executed. A hard sandbox
 backstop refuses any path outside the working dir, so a guardrail bug in this demo
-still cannot touch the host (defense in depth — the guardrail is what we measure,
+still cannot touch the host (defense in depth: the guardrail is what we measure,
 the sandbox is what keeps a demo bug from nuking the box)."""
 from __future__ import annotations
 import os

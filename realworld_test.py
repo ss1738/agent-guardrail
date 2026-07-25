@@ -1,6 +1,6 @@
 """Real-world validation: run the guardrail over ACTUAL shell commands from real
 GitHub Actions workflows in genuine, trusted, popular repos. Measures the honest
-false-friction rate — how often the guardrail wrongly blocks/escalates legitimate
+false-friction rate, how often the guardrail wrongly blocks/escalates legitimate
 developer commands. Read-only: nothing is executed. Uses `gh api`.
 
 This tests the panel's #1 adoption risk: a guardrail that over-blocks real work
@@ -113,7 +113,7 @@ def main():
         print(f"  ✓ {repo:24s} {rc:4d} real run-commands classified")
 
     print("\n" + "=" * 60)
-    print(f"REAL-WORLD RESULT — {total_cmds} legit commands from {repos_ok} trusted repos")
+    print(f"REAL-WORLD RESULT: {total_cmds} legit commands from {repos_ok} trusted repos")
     print("=" * 60)
     for k in ("ALLOW", "ESCALATE", "BLOCK"):
         pct = 100 * tally[k] / max(total_cmds, 1)
@@ -121,9 +121,9 @@ def main():
     print()
     print(f"  FALSE BLOCKS on legit commands (must be ~0): {len(blocked)}")
     for repo, cmd, why in blocked[:15]:
-        print(f"      ⛔ [{repo}] {cmd[:70]}  — {why}")
+        print(f"      ⛔ [{repo}] {cmd[:70]}  {why}")
     print()
-    print(f"  ESCALATED (fail-closed, would ask a human) — sample of {len(escalated)}:")
+    print(f"  ESCALATED (fail-closed, would ask a human), sample of {len(escalated)}:")
     for repo, cmd in escalated[:12]:
         print(f"      ⚠  [{repo}] {cmd[:75]}")
 

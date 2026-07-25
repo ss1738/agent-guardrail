@@ -1,11 +1,11 @@
 """The guardrail: a formally-checked runtime shield for coding-agent tool calls.
 
-An autonomous coding agent proposes a tool call — a git op, a file write, or a
+An autonomous coding agent proposes a tool call: a git op, a file write, or a
 shell command. The guardrail returns ALLOW / BLOCK / ESCALATE with a reason, and
 appends every decision to a tamper-evident HMAC-SHA256 audit chain. Separately,
 z3 PROVES the git-op policy has no hole: there is no action the guard admits that
-mutates protected-branch history. That self-verification — finding gaps in your
-own policy — is what a regex allowlist cannot do.
+mutates protected-branch history. That self-verification, finding gaps in your
+own policy, is what a regex allowlist cannot do.
 
 Honest scope: git ops and file writes are modelled and covered by the soundness
 proof. Raw shell is matched against known-destructive patterns; anything not
@@ -25,7 +25,7 @@ SECRET_RE = re.compile(
 EXFIL_RE = re.compile(r"\b(curl|wget|nc|ncat)\b.*(https?://|[0-9]{1,3}(\.[0-9]{1,3}){3})")
 
 # Catastrophic, high-precision: destruction of the REPO / HOME / ROOT (not arbitrary
-# system paths — a CI runner deleting /usr/share/dotnet to free disk is legitimate and
+# system paths, since a CI runner deleting /usr/share/dotnet to free disk is legitimate and
 # outside a repo-guard's remit). Matches rm -rf targeting the repo itself, and true
 # machine-wrecking commands.
 _RM = r"\brm\s+(?:-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rf][a-zA-Z]*\b"
@@ -99,8 +99,8 @@ class Guardrail:
         """Default-ALLOW, precisely BLOCK the defined threat classes. A coding agent
         must run arbitrary build/test commands, so escalating everything unrecognised
         is unusable (measured: 65% of real CI commands). The guardrail's remit is a
-        DEFINED threat model — repo destruction, secret exfiltration, protected-branch
-        history rewrite — not policing every command."""
+        DEFINED threat model (repo destruction, secret exfiltration, protected-branch
+        history rewrite), not policing every command."""
         # 1. secret exfiltration / writing a secret to disk via shell
         if SECRET_RE.search(c) and EXFIL_RE.search(c):
             return "BLOCK", "secret exfiltration over the network"
@@ -121,7 +121,7 @@ class Guardrail:
                 re.search(r"\borigin\s+[A-Za-z0-9._/\-]+", c)
             if non_protected_branch:
                 return "ALLOW", "history op on a non-protected branch"
-            return "ESCALATE", "git history rewrite on an unspecified branch — human review"
+            return "ESCALATE", "git history rewrite on an unspecified branch, human review"
         # 4. everything else a build/test agent does is out of scope -> allow
         return "ALLOW", "no policy-relevant effect (build/test/inspect command)"
 
