@@ -3,7 +3,7 @@
 [![CI](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml/badge.svg)](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**A runtime gate for autonomous coding agents. It sits in the tool-call path between the agent and your repo and stops the actions that wreck a repository (force-pushing `main`, `rm -rf` the working tree, exfiltrating a secret, wiping CI) while letting normal build and commit work through. The git-branch policy has a machine-checked core: z3 proves it admits no action that rewrites protected-branch history, and it reports the exact gap if you weaken it. The rest of the threat model is enforced by high-precision heuristics, not by proof, and this README is explicit about which is which.**
+**A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell` / `write_file` / `git` call is checked before it executes. It stops the actions that wreck a repository (force-pushing `main`, `rm -rf` the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave. As a bonus, its git-branch sub-policy is machine-checked by z3, which is a property almost no guardrail has: the policy can check itself for gaps. Everything else is high-precision heuristics, and this README is explicit about which is which.**
 
 Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model: it checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
 
@@ -32,9 +32,9 @@ The same destructive tool-call sequence a hijacked agent emits, run with and wit
 
 6 of 6 destructive actions blocked, 2 of 2 legitimate actions allowed, in the real execution path.
 
-## The proven core: the policy checks itself for gaps
+## A machine-checked core (a credibility detail, not the main defence)
 
-A hand-written allowlist cannot tell you whether it has a hole. The git-branch policy can. Using z3, it proves over the symbolic class of git actions:
+This covers the narrowest surface, protected-branch history, which server-side `pre-receive` hooks also guard, so it is not where most of the value is. It is here because it is unusual: a hand-written allowlist cannot tell you whether it has a hole, and this policy can. Using z3, it proves over the symbolic class of git actions:
 
 ```
 guard_allows(a)  implies  not mutates_protected_history(a)
@@ -86,6 +86,11 @@ surface that Claude Desktop, Cursor, Copilot, and Windsurf all speak. Point an M
 client at it and every `run_shell` / `write_file` / `git` call the agent makes is
 gated in the protocol path, before it touches the repo. No trust in the agent.
 
+This holds only if the MCP server is the agent's *only* route to shell, git, and
+files. An agent that also has an unguarded raw shell, or that can edit the server
+file, bypasses the gate. Run it out-of-process and give the agent no other
+execution path. See [THREAT_MODEL.md](THREAT_MODEL.md).
+
 ```jsonc
 // in your MCP client config (Claude Desktop, Cursor, ...)
 "agent-guardrail": {
@@ -95,7 +100,7 @@ gated in the protocol path, before it touches the repo. No trust in the agent.
 }
 ```
 
-`integrations/demo_mcp.py` proves this end-to-end: it launches the server and
+`integrations/demo_mcp.py` demonstrates this end-to-end: it launches the server and
 connects as a real MCP client over stdio (the same transport those apps use), then
 issues a mix of legitimate and destructive tool calls. The destructive ones are
 blocked inside the protocol:
@@ -121,8 +126,10 @@ python3 tests/test_guardrail.py            # 10 tests
 python3 demo_compare.py                    # with and without the gate, on a real repo
 python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
 python3 realworld_test.py                  # the 2,836-command friction check (needs gh)
-ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent on a hijacked repo
+ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent meets a planted injection: it declines, and the gate stands behind it
 ```
+
+The interception itself (an attack actually being blocked) is shown by `demo_compare.py` and `integrations/demo_mcp.py`. `demo_hijack.py` shows the complementary case: a well-behaved real agent, where the gate adds no friction and waits as the backstop.
 
 ## Status
 

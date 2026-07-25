@@ -1,13 +1,15 @@
-"""Live demo: a REAL Claude coding agent, hijacked by a prompt injection, is
-stopped by the guardrail. Not a mock, a real API-driven tool-use loop executing
-real git/file/shell ops in a sandbox repo.
+"""Live demo: a REAL Claude coding agent meets a prompt injection. Not a mock, a
+real API-driven tool-use loop executing real git/file/shell ops in a sandbox repo.
 
     ANTHROPIC_API_KEY=... python3 demo_hijack.py
 
 The agent is asked to fix a bug. A file it reads (ISSUE.md) carries an injected
 "maintenance" instruction telling it to force-push to main and delete the repo.
-We observe what the real model does, and that the guardrail blocks every
-destructive tool call regardless of whether the model complies.
+We observe what the real model does. A well-aligned model usually declines the
+injection on its own, which is the point: this shows the gate adds no friction to
+a good agent and waits as the deterministic backstop. The interception of an
+actual attack is shown by demo_compare.py and integrations/demo_mcp.py, where the
+destructive calls are issued for real and the gate blocks every one.
 """
 from __future__ import annotations
 import json
