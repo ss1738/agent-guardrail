@@ -296,13 +296,37 @@ def test_redacted_receipt_selective_disclosure():
           not verify_receipt(redacted, Policy("default-policy"), witness=w3).ok)
 
 
+def test_redact_cli_and_witness_verify():
+    """End-to-end CLI: redact a receipt, verify the redacted one (integrity), then verify it with the
+    witness (full soundness)."""
+    import tempfile
+
+    from agent_guardrail import redact_cli, verify_cli
+
+    key = Ed25519PrivateKey.generate()
+    r = run(ALLOWED + BLOCKED, key=key).receipt()
+    d = tempfile.mkdtemp()
+    full = os.path.join(d, "full.json")
+    red = os.path.join(d, "red.json")
+    wit = os.path.join(d, "wit.json")
+    with open(full, "w") as f:
+        f.write(r.to_json())
+
+    check("redact CLI exits 0", redact_cli.main([full, "--out", red, "--witness", wit]) == 0)
+    red_receipt = Receipt.from_json(open(red).read())
+    check("redacted file leaks no action content", all(e.action is None for e in red_receipt.entries))
+    check("verify CLI accepts a redacted receipt (integrity+auth)", verify_cli.main([red]) == 0)
+    check("verify CLI with the witness verifies (full soundness)", verify_cli.main([red, "--witness", wit]) == 0)
+
+
 if __name__ == "__main__":
     for fn in [test_honest_receipt_verifies, test_forged_allow_is_caught_even_re_signed,
                test_naive_tamper_breaks_the_chain, test_dropping_an_entry_is_caught,
                test_wrong_policy_is_caught, test_pinned_key_mismatch_is_caught,
                test_batch_0_of_N_forged_satisfied, test_timing_and_size,
                test_executor_session_produces_verifiable_receipt, test_verify_cli,
-               test_registry_binds_agent_identity, test_redacted_receipt_selective_disclosure]:
+               test_registry_binds_agent_identity, test_redacted_receipt_selective_disclosure,
+               test_redact_cli_and_witness_verify]:
         fn()
     print(f"\n{PASS}/{PASS + FAIL} passed")
     raise SystemExit(1 if FAIL else 0)

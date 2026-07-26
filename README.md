@@ -30,6 +30,12 @@ A receipt carries its own key, so on its own it proves *some* key signed a compl
 
 **Privacy — redact without breaking the proof.** The chain is over a salted commitment of each action, so `receipt.redact()` strips the raw commands and file contents while the signature and integrity stay valid; a witness discloses any *subset* of actions to prove those verdicts sound. You can hand an insurer proof your agent stayed in policy without handing them your production commands. The verification result states exactly how much was disclosed, so a partly-redacted receipt is never mistaken for a fully-sound one.
 
+```bash
+agent-guardrail-redact receipt.json --out redacted.json --witness witness.json
+agent-guardrail-verify redacted.json                        # integrity + authenticity, no content revealed
+agent-guardrail-verify redacted.json --witness witness.json  # + full soundness, from the witness
+```
+
 Over the MCP server, a `session_receipt` tool exports the receipt for the session. **Scope, honestly:** the receipt proves the recorded trace was gated soundly under the committed policy; it does not prove the model's intent, and its enforcement is exactly as strong as the ruleset and the gate being out-of-process (the same assumption as the gate — see Assumptions below). What a `VERIFIED` receipt guarantees, and what it does not, is stated precisely in [docs/CONTROL_PLANE_TRUST_MODEL.md](docs/CONTROL_PLANE_TRUST_MODEL.md) — the document a security review or an insurer should read.
 
 ## What is proven vs. what is heuristic

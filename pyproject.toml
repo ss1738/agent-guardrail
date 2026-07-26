@@ -13,6 +13,7 @@ mcp = ["mcp>=1.0"]
 
 [project.scripts]
 agent-guardrail-verify = "agent_guardrail.verify_cli:main"
+agent-guardrail-redact = "agent_guardrail.redact_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/ss1738/agent-guardrail"

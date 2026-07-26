@@ -12,6 +12,7 @@ issuer. Exit 0 = verified, 1 = rejected, 2 = usage error.
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from .control_plane import Policy, Receipt, verify_receipt
@@ -28,6 +29,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--policy-version", help="the policy version YOU expect (default: the receipt's)")
     p.add_argument("--pin-key", help="hex Ed25519 public key pinned to this agent's identity")
     p.add_argument("--registry", help="path to an agent-identity registry (agent_id -> pinned key) YOU control")
+    p.add_argument("--witness", help="path to a disclosure witness (for a redacted receipt) to check soundness")
     p.add_argument("-q", "--quiet", action="store_true", help="print only VERIFIED/REJECTED")
     args = p.parse_args(argv)
 
@@ -58,7 +60,16 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         pin = expected
 
-    result = verify_receipt(receipt, policy, pinned_public_key=pin)
+    witness = None
+    if args.witness:
+        try:
+            with open(args.witness) as f:
+                witness = json.load(f)
+        except Exception as e:
+            print(f"error: could not read witness: {e}", file=sys.stderr)
+            return 2
+
+    result = verify_receipt(receipt, policy, pinned_public_key=pin, witness=witness)
 
     if args.quiet:
         print("VERIFIED" if result.ok else "REJECTED")
