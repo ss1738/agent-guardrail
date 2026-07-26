@@ -26,6 +26,8 @@ agent-guardrail-verify receipt.json
 python3 demo_receipt.py   # a gated session -> VERIFIED independently -> operator forges + re-signs -> CAUGHT
 ```
 
+A receipt carries its own key, so on its own it proves *some* key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`agent-guardrail-verify receipt.json --registry agents.json`), and verification also proves the receipt is from *that* agent — an attacker who signs a compliant trace but impersonates a registered identity is rejected.
+
 Over the MCP server, a `session_receipt` tool exports the receipt for the session. **Scope, honestly:** the receipt proves the recorded trace was gated soundly under the committed policy; it does not prove the model's intent, and its enforcement is exactly as strong as the ruleset and the gate being out-of-process (the same assumption as the gate — see Assumptions below).
 
 ## What is proven vs. what is heuristic

@@ -209,12 +209,56 @@ def test_verify_cli():
     check("verify CLI exits 2 on a missing file", verify_cli.main(["/no/such/receipt.json"]) == 2)
 
 
+def test_registry_binds_agent_identity():
+    """The registry rejects an attacker who signs a policy-compliant trace but impersonates a
+    registered agent (right internal receipt, wrong identity)."""
+    import tempfile
+
+    from cryptography.hazmat.primitives import serialization
+
+    from agent_guardrail import verify_cli
+    from agent_guardrail.registry import Registry
+
+    def pub(k):
+        return k.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        ).hex()
+
+    d = tempfile.mkdtemp()
+    key = Ed25519PrivateKey.generate()
+    cp = ControlPlane("acme/agent", Policy("default-policy"), signing_key=key)
+    cp.gate(Action("shell", cmd="npm test"))
+    rpath = os.path.join(d, "r.json")
+    with open(rpath, "w") as f:
+        f.write(cp.receipt().to_json())
+
+    reg = Registry(os.path.join(d, "reg.json"))
+    reg.register("acme/agent", pub(key))
+    check("registered agent + matching key verifies", verify_cli.main([rpath, "--registry", reg.path]) == 0)
+
+    reg2 = Registry(os.path.join(d, "reg2.json"))
+    reg2.register("someone-else", pub(key))
+    check("an unregistered agent is rejected", verify_cli.main([rpath, "--registry", reg2.path]) == 1)
+
+    reg3 = Registry(os.path.join(d, "reg3.json"))
+    reg3.register("acme/agent", pub(Ed25519PrivateKey.generate()))   # pin a DIFFERENT key
+    check("impersonation (receipt key != pinned key) is rejected",
+          verify_cli.main([rpath, "--registry", reg3.path]) == 1)
+
+    try:
+        Registry().register("x", "not-a-key"); bad = True
+    except ValueError:
+        bad = False
+    check("registering an invalid public key raises", not bad)
+
+
 if __name__ == "__main__":
     for fn in [test_honest_receipt_verifies, test_forged_allow_is_caught_even_re_signed,
                test_naive_tamper_breaks_the_chain, test_dropping_an_entry_is_caught,
                test_wrong_policy_is_caught, test_pinned_key_mismatch_is_caught,
                test_batch_0_of_N_forged_satisfied, test_timing_and_size,
-               test_executor_session_produces_verifiable_receipt, test_verify_cli]:
+               test_executor_session_produces_verifiable_receipt, test_verify_cli,
+               test_registry_binds_agent_identity]:
         fn()
     print(f"\n{PASS}/{PASS + FAIL} passed")
     raise SystemExit(1 if FAIL else 0)

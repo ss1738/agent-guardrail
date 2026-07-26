@@ -15,6 +15,7 @@ import argparse
 import sys
 
 from .control_plane import Policy, Receipt, verify_receipt
+from .registry import Registry
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--policy-id", help="the policy id YOU expect (default: the receipt's own claim)")
     p.add_argument("--policy-version", help="the policy version YOU expect (default: the receipt's)")
     p.add_argument("--pin-key", help="hex Ed25519 public key pinned to this agent's identity")
+    p.add_argument("--registry", help="path to an agent-identity registry (agent_id -> pinned key) YOU control")
     p.add_argument("-q", "--quiet", action="store_true", help="print only VERIFIED/REJECTED")
     args = p.parse_args(argv)
 
@@ -45,7 +47,18 @@ def main(argv: list[str] | None = None) -> int:
         args.policy_id or receipt.policy_id,
         args.policy_version or "1",
     )
-    result = verify_receipt(receipt, policy, pinned_public_key=args.pin_key)
+
+    # Pin the agent's key: explicit --pin-key wins; else look it up in the registry (and reject an
+    # agent the relying party has not registered).
+    pin = args.pin_key
+    if args.registry and not pin:
+        expected = Registry.load(args.registry).key_for(receipt.agent_id)
+        if expected is None:
+            print(f"REJECTED: agent '{receipt.agent_id}' is not in the registry", file=sys.stderr)
+            return 1
+        pin = expected
+
+    result = verify_receipt(receipt, policy, pinned_public_key=pin)
 
     if args.quiet:
         print("VERIFIED" if result.ok else "REJECTED")
