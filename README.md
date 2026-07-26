@@ -148,7 +148,8 @@ blocked: 5   allowed: 4    .git intact, no secret, CI intact, fix applied, audit
 ## Run it
 
 ```bash
-pip install z3-solver cryptography "mcp"
+pip install -e .                           # installs the package + the `agent-guardrail-verify` command
+# (or, to just run the scripts below without the CLI: pip install z3-solver cryptography "mcp")
 python3 tests/test_guardrail.py            # 11 tests (the gate)
 python3 tests/test_control_plane.py        # 18 tests (verifiable receipts + 0/500 forgeries caught)
 python3 demo_compare.py                    # with and without the gate, on a real repo
