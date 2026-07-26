@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import secrets
 from dataclasses import asdict, dataclass, field
 
 from cryptography.exceptions import InvalidSignature
@@ -65,11 +66,13 @@ class Policy:
 # ---------------------------------------------------------------------------
 @dataclass
 class Entry:
-    action: dict     # dataclasses.asdict(Action)
     verdict: str     # ALLOW | BLOCK | ESCALATE (as recorded by the gate)
     reason: str
     executed: bool    # did the operator actually run it (BLOCK must never be executed)
+    commit: str      # sha256(canonical(action) || salt) -- the chain is over this, so it survives redaction
     head: str        # public hash-chain head after this entry
+    action: dict | None = None   # the raw action, or None if redacted for privacy
+    salt: str = ""               # hex salt for the commitment, or "" if redacted
 
 
 @dataclass
@@ -91,17 +94,36 @@ class Receipt:
         d["entries"] = [Entry(**e) for e in d["entries"]]
         return Receipt(**d)
 
+    def redact(self, reveal=None) -> tuple["Receipt", dict]:
+        """Return (redacted_receipt, witness). Strip the raw actions + salts so the receipt no longer
+        leaks the agent's commands or file contents; the chain is over commitments, so the signature
+        stays valid. `reveal` = indices to keep in the clear (e.g. only the BLOCKed actions). The
+        witness holds the redacted (action, salt) pairs, so the operator can later disclose any subset
+        to a verifier and prove those verdicts sound, without revealing the rest."""
+        reveal = set(reveal or ())
+        red = Receipt.from_json(self.to_json())  # deep copy
+        witness: dict = {}
+        for i, e in enumerate(red.entries):
+            if i not in reveal:
+                witness[str(i)] = {"action": e.action, "salt": e.salt}
+                e.action, e.salt = None, ""
+        return red, witness
 
-def _entry_bytes(index: int, action: dict, verdict: str, reason: str, executed: bool) -> bytes:
-    """Canonical, deterministic serialization of one trace entry for the hash-chain."""
-    ac = json.dumps(action, sort_keys=True, separators=(",", ":"))
-    return f"{index}|{ac}|{verdict}|{reason}|{int(executed)}".encode()
+
+def _canon(action: dict) -> str:
+    return json.dumps(action, sort_keys=True, separators=(",", ":"))
 
 
-def _chain_step(prev_head: str, index: int, action: dict, verdict: str, reason: str, executed: bool) -> str:
+def _commit(action: dict, salt_hex: str) -> str:
+    """A salted commitment to an action. Hides the action's content (commands, file bytes) while
+    binding it, so the chain and signature survive redaction and a disclosed action can be checked."""
+    return hashlib.sha256((_canon(action) + salt_hex).encode()).hexdigest()
+
+
+def _chain_step(prev_head: str, index: int, commit: str, verdict: str, reason: str, executed: bool) -> str:
     h = hashlib.sha256()
     h.update(prev_head.encode())
-    h.update(_entry_bytes(index, action, verdict, reason, executed))
+    h.update(f"{index}|{commit}|{verdict}|{reason}|{int(executed)}".encode())
     return h.hexdigest()
 
 
@@ -133,8 +155,10 @@ class ControlPlane:
         its own gate, so the receipt records the REAL outcome (whether the action actually ran, e.g.
         an ALLOW that a sandbox backstop still refused is recorded as not executed)."""
         ad = asdict(action)
-        self._head = _chain_step(self._head, len(self._entries), ad, verdict, reason, executed)
-        self._entries.append(Entry(ad, verdict, reason, executed, self._head))
+        salt = secrets.token_hex(16)
+        commit = _commit(ad, salt)
+        self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
+        self._entries.append(Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt))
 
     def gate(self, action: Action) -> str:
         """Classify + record one action. Returns the verdict. A BLOCK is recorded as NOT executed (the
@@ -167,15 +191,27 @@ class VerifyResult:
     reason: str
 
 
-def verify_receipt(receipt: Receipt, policy: Policy, pinned_public_key: str | None = None) -> VerifyResult:
+def verify_receipt(
+    receipt: Receipt,
+    policy: Policy,
+    pinned_public_key: str | None = None,
+    witness: dict | None = None,
+) -> VerifyResult:
+    """Verify a receipt. Works on a full receipt, a redacted one, or a redacted one plus a `witness`
+    (which discloses some actions). Integrity, authenticity, and the policy commitment are always
+    checked; the soundness re-run is checked for every action that is disclosed (inline or via the
+    witness). The result's reason states the disclosure coverage, so a partly-redacted receipt is
+    never mistaken for a fully-sound one."""
+    witness = witness or {}
+
     # (0) the receipt must name the policy the verifier holds
     if receipt.policy_root != policy.root():
         return VerifyResult(False, "policy mismatch: receipt was issued under a different policy")
 
-    # (1) public hash-chain integrity: recompute from genesis, catch any tamper
+    # (1) public hash-chain integrity (over commitments, so redaction does not break it)
     head = GENESIS
     for i, e in enumerate(receipt.entries):
-        head = _chain_step(head, i, e.action, e.verdict, e.reason, e.executed)
+        head = _chain_step(head, i, e.commit, e.verdict, e.reason, e.executed)
         if head != e.head:
             return VerifyResult(False, f"chain broken at entry {i}: trace was altered")
     if head != receipt.final_head:
@@ -194,21 +230,32 @@ def verify_receipt(receipt: Receipt, policy: Policy, pinned_public_key: str | No
     except (InvalidSignature, ValueError):
         return VerifyResult(False, "invalid signature over the chain head")
 
-    # (3) THE soundness re-run: the committed policy, re-run on each action, must reproduce the
-    #     recorded verdict. A forged ALLOW on a would-be-BLOCK action is caught here.
+    # (3) soundness over every DISCLOSED action: its commitment must match, and re-running the
+    #     committed policy must reproduce the recorded verdict. A forged ALLOW is caught here even
+    #     when re-chained and re-signed. Redacted-and-undisclosed entries cannot be soundness-checked.
+    disclosed = 0
     for i, e in enumerate(receipt.entries):
+        act, salt = e.action, e.salt
+        if act is None and str(i) in witness:
+            act, salt = witness[str(i)]["action"], witness[str(i)]["salt"]
+        if act is None:
+            continue  # redacted with no witness: integrity + authenticity only for this entry
+        if _commit(act, salt) != e.commit:
+            return VerifyResult(False, f"entry {i}: disclosed action does not match its commitment")
         try:
-            v, _ = policy.classify(Action(**e.action))
+            v, _ = policy.classify(Action(**act))
         except TypeError:
             return VerifyResult(False, f"entry {i}: malformed action")
         if v != e.verdict:
-            return VerifyResult(
-                False, f"unsound verdict at entry {i}: policy says {v}, receipt claims {e.verdict}"
-            )
+            return VerifyResult(False, f"unsound verdict at entry {i}: policy says {v}, receipt claims {e.verdict}")
+        disclosed += 1
 
     # (4) enforcement invariant: a BLOCKed action must never be marked executed
     for i, e in enumerate(receipt.entries):
         if e.verdict == "BLOCK" and e.executed:
             return VerifyResult(False, f"entry {i}: a BLOCKed action was executed")
 
-    return VerifyResult(True, f"verified: {len(receipt.entries)} actions, policy {receipt.policy_id}, untampered and sound")
+    n = len(receipt.entries)
+    cover = "untampered and sound" if disclosed == n else (
+        f"untampered; {disclosed}/{n} actions disclosed and sound, {n - disclosed} redacted")
+    return VerifyResult(True, f"verified: {n} actions, policy {receipt.policy_id}, {cover}")

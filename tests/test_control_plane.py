@@ -15,6 +15,7 @@ from agent_guardrail.control_plane import (
     Policy,
     Receipt,
     _chain_step,
+    _commit,
     _signing_payload,
     verify_receipt,
 )
@@ -47,7 +48,9 @@ def _resign(receipt: Receipt, key: Ed25519PrivateKey) -> Receipt:
     malicious operator who holds the agent key would do to try to hide a violation."""
     head = GENESIS
     for i, e in enumerate(receipt.entries):
-        head = _chain_step(head, i, e.action, e.verdict, e.reason, e.executed)
+        if e.action is not None:
+            e.commit = _commit(e.action, e.salt)   # keep the commitment consistent with a forged action
+        head = _chain_step(head, i, e.commit, e.verdict, e.reason, e.executed)
         e.head = head
     receipt.final_head = head
     receipt.signature = key.sign(
@@ -252,13 +255,54 @@ def test_registry_binds_agent_identity():
     check("registering an invalid public key raises", not bad)
 
 
+def test_redacted_receipt_selective_disclosure():
+    """A redacted receipt hides the agent's commands/file contents but still verifies (integrity +
+    authenticity); a witness restores soundness selectively; forgery is still caught."""
+    from dataclasses import asdict
+
+    key = Ed25519PrivateKey.generate()
+    full = run(ALLOWED + BLOCKED, key=key).receipt()
+
+    redacted, witness = full.redact()
+    check("redaction leaks no action content", all(e.action is None for e in redacted.entries))
+    v = verify_receipt(redacted, Policy("default-policy"))
+    check("fully-redacted receipt verifies and flags coverage", v.ok and "redacted" in v.reason)
+    check("redacted receipt verifies after JSON round-trip",
+          verify_receipt(Receipt.from_json(redacted.to_json()), Policy("default-policy")).ok)
+    v2 = verify_receipt(redacted, Policy("default-policy"), witness=witness)
+    check("redacted + full witness is fully sound",
+          v2.ok and "sound" in v2.reason and "redacted" not in v2.reason)
+
+    reveal = [i for i, e in enumerate(full.entries) if e.verdict == "BLOCK"]
+    partial, _w = full.redact(reveal=reveal)
+    check("selectively-revealed actions are in the clear, the rest hidden",
+          all(partial.entries[i].action is not None for i in reveal)
+          and any(e.action is None for e in partial.entries))
+    check("partial receipt verifies", verify_receipt(partial, Policy("default-policy")).ok)
+
+    # forge a verdict on a disclosed action and re-sign -> still caught
+    bad, _w2 = full.redact(reveal=reveal)
+    for i in reveal:
+        bad.entries[i].verdict, bad.entries[i].executed = "ALLOW", True
+    _resign(bad, key)
+    check("forged verdict on a disclosed action is caught even when redacted",
+          not verify_receipt(bad, Policy("default-policy")).ok)
+
+    # a witness action that does not match its commitment is caught
+    k0 = next(iter(witness))
+    w3 = dict(witness)
+    w3[k0] = {"action": asdict(Action("shell", cmd="different-command")), "salt": witness[k0]["salt"]}
+    check("a witness action not matching its commitment is caught",
+          not verify_receipt(redacted, Policy("default-policy"), witness=w3).ok)
+
+
 if __name__ == "__main__":
     for fn in [test_honest_receipt_verifies, test_forged_allow_is_caught_even_re_signed,
                test_naive_tamper_breaks_the_chain, test_dropping_an_entry_is_caught,
                test_wrong_policy_is_caught, test_pinned_key_mismatch_is_caught,
                test_batch_0_of_N_forged_satisfied, test_timing_and_size,
                test_executor_session_produces_verifiable_receipt, test_verify_cli,
-               test_registry_binds_agent_identity]:
+               test_registry_binds_agent_identity, test_redacted_receipt_selective_disclosure]:
         fn()
     print(f"\n{PASS}/{PASS + FAIL} passed")
     raise SystemExit(1 if FAIL else 0)

@@ -58,6 +58,24 @@ trusts neither the operator nor the server.*
   verifier reconstructs the policy themselves; taking the policy on the receipt's word makes check 1
   vacuous. Ship the policy definition to relying parties, versioned.
 
+## Privacy: redaction and selective disclosure
+
+The chain is over a salted commitment of each action, not the raw action, so a receipt can be redacted
+without invalidating its signature or integrity. `receipt.redact(reveal=...)` strips the raw commands
+and file contents (which would otherwise leak secrets and internal state) and returns a witness holding
+the redacted `(action, salt)` pairs. The operator can then disclose any subset to a verifier.
+
+- A **redacted** receipt (no witness) proves policy identity, integrity, authenticity, and the
+  enforcement invariant — but NOT soundness, because the verifier cannot re-run the policy on hidden
+  actions. `verify_receipt` reports the coverage (`N disclosed and sound, M redacted`) so this is never
+  mistaken for a full guarantee.
+- A **witness** (full or partial) restores the soundness re-run for exactly the disclosed actions; a
+  disclosed action whose content does not match its commitment is rejected.
+
+This is commitment-based selective disclosure. A zero-knowledge proof of "the hidden action satisfied
+the committed policy" (proving soundness *without* disclosure) is the natural next step and does not
+change this trust model's guarantees, only how much must be revealed to obtain them.
+
 ## Attacks defeated vs. out of scope
 
 | Attempt | Result |

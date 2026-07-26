@@ -17,6 +17,7 @@ from agent_guardrail.control_plane import (
     Policy,
     Receipt,
     _chain_step,
+    _commit,
     _signing_payload,
     verify_receipt,
 )
@@ -38,7 +39,9 @@ def resign_forgery(receipt, key):
             e.verdict, e.executed, e.reason = "ALLOW", True, "nothing to see here"
     head = GENESIS
     for i, e in enumerate(receipt.entries):
-        head = _chain_step(head, i, e.action, e.verdict, e.reason, e.executed)
+        if e.action is not None:
+            e.commit = _commit(e.action, e.salt)
+        head = _chain_step(head, i, e.commit, e.verdict, e.reason, e.executed)
         e.head = head
     receipt.final_head = head
     receipt.signature = key.sign(
