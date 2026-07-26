@@ -184,12 +184,37 @@ def test_executor_session_produces_verifiable_receipt():
     check("a forged executor receipt is caught", not verify_receipt(r, Policy("default-policy")).ok)
 
 
+def test_verify_cli():
+    """The relying-party CLI: exit 0 on a good receipt, 1 on a forged one."""
+    import tempfile
+
+    from agent_guardrail import verify_cli
+
+    key = Ed25519PrivateKey.generate()
+    r = run(ALLOWED + BLOCKED, key=key).receipt()
+    good = os.path.join(tempfile.mkdtemp(), "receipt.json")
+    with open(good, "w") as f:
+        f.write(r.to_json())
+    check("verify CLI exits 0 on a valid receipt", verify_cli.main([good]) == 0)
+    check("verify CLI quiet mode exits 0", verify_cli.main([good, "-q"]) == 0)
+
+    for e in r.entries:
+        if e.verdict == "BLOCK":
+            e.verdict, e.executed = "ALLOW", True
+    _resign(r, key)
+    forged = os.path.join(tempfile.mkdtemp(), "forged.json")
+    with open(forged, "w") as f:
+        f.write(r.to_json())
+    check("verify CLI exits 1 on a forged receipt", verify_cli.main([forged]) == 1)
+    check("verify CLI exits 2 on a missing file", verify_cli.main(["/no/such/receipt.json"]) == 2)
+
+
 if __name__ == "__main__":
     for fn in [test_honest_receipt_verifies, test_forged_allow_is_caught_even_re_signed,
                test_naive_tamper_breaks_the_chain, test_dropping_an_entry_is_caught,
                test_wrong_policy_is_caught, test_pinned_key_mismatch_is_caught,
                test_batch_0_of_N_forged_satisfied, test_timing_and_size,
-               test_executor_session_produces_verifiable_receipt]:
+               test_executor_session_produces_verifiable_receipt, test_verify_cli]:
         fn()
     print(f"\n{PASS}/{PASS + FAIL} passed")
     raise SystemExit(1 if FAIL else 0)
