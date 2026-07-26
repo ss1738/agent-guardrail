@@ -88,6 +88,16 @@ async def main():
             print("audit chain verifies:",
                   json.loads(audit.content[0].text)["chain_verifies"])
 
+            # pull the signed session receipt over MCP and verify it INDEPENDENTLY
+            rec = await session.call_tool("session_receipt", {})
+            sys.path.insert(0, os.path.dirname(HERE))
+            from agent_guardrail.control_plane import Policy, Receipt, verify_receipt
+            receipt = Receipt.from_json(rec.content[0].text)
+            v = verify_receipt(receipt, Policy(receipt.policy_id))
+            print(f"session receipt: {len(receipt.entries)} actions, "
+                  f"{sum(e.verdict == 'BLOCK' for e in receipt.entries)} blocked, signed by "
+                  f"{receipt.public_key[:12]}... -> {'VERIFIED' if v.ok else 'REJECTED'}")
+
 
 if __name__ == "__main__":
     asyncio.run(main())
