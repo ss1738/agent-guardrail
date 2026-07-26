@@ -11,6 +11,33 @@
 
 Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model: it checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
 
+## Beyond the gate: verifiable receipts (Agent Control Plane)
+
+The gate stops bad actions. The **Agent Control Plane** adds the other half a relying party actually needs: a signed **receipt** that anyone can verify *without trusting you or your server*. Bind an agent identity to a named, committed policy, gate its tool calls, and export a receipt — the agent id, the policy commitment, every gated action with its verdict, and an Ed25519 signature over a tamper-evident hash chain. An auditor, a bank, or an insurer verifies it with the **public key alone**:
+
+```bash
+agent-guardrail-verify receipt.json
+# VERIFIED: verified: 6 actions, policy acme-prod-agent-policy, untampered and sound
+```
+
+`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert / delete / reorder / alter), (3) the Ed25519 signature is valid, and (4) — the one that matters — it **re-runs the committed policy over the trace**, so a forged `ALLOW` on an action the policy would `BLOCK` is caught *even when the operator re-chains and re-signs with their own key*. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy.
+
+```bash
+python3 demo_receipt.py   # a gated session -> VERIFIED independently -> operator forges + re-signs -> CAUGHT
+```
+
+A receipt carries its own key, so on its own it proves *some* key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`agent-guardrail-verify receipt.json --registry agents.json`), and verification also proves the receipt is from *that* agent — an attacker who signs a compliant trace but impersonates a registered identity is rejected.
+
+**Privacy — redact without breaking the proof.** The chain is over a salted commitment of each action, so `receipt.redact()` strips the raw commands and file contents while the signature and integrity stay valid; a witness discloses any *subset* of actions to prove those verdicts sound. You can hand an insurer proof your agent stayed in policy without handing them your production commands. The verification result states exactly how much was disclosed, so a partly-redacted receipt is never mistaken for a fully-sound one.
+
+```bash
+agent-guardrail-redact receipt.json --out redacted.json --witness witness.json
+agent-guardrail-verify redacted.json                        # integrity + authenticity, no content revealed
+agent-guardrail-verify redacted.json --witness witness.json  # + full soundness, from the witness
+```
+
+Over the MCP server, a `session_receipt` tool exports the receipt for the session. **Scope, honestly:** the receipt proves the recorded trace was gated soundly under the committed policy; it does not prove the model's intent, and its enforcement is exactly as strong as the ruleset and the gate being out-of-process (the same assumption as the gate — see Assumptions below). What a `VERIFIED` receipt guarantees, and what it does not, is stated precisely in [docs/CONTROL_PLANE_TRUST_MODEL.md](docs/CONTROL_PLANE_TRUST_MODEL.md) — the document a security review or an insurer should read.
+
 ## What is proven vs. what is heuristic
 
 Being precise about this up front, because it is the whole point:
@@ -129,9 +156,12 @@ blocked: 5   allowed: 4    .git intact, no secret, CI intact, fix applied, audit
 ## Run it
 
 ```bash
-pip install z3-solver "mcp"
-python3 tests/test_guardrail.py            # 10 tests
+pip install -e .                           # installs the package + the `agent-guardrail-verify` command
+# (or, to just run the scripts below without the CLI: pip install z3-solver cryptography "mcp")
+python3 tests/test_guardrail.py            # 11 tests (the gate)
+python3 tests/test_control_plane.py        # 18 tests (verifiable receipts + 0/500 forgeries caught)
 python3 demo_compare.py                    # with and without the gate, on a real repo
+python3 demo_receipt.py                    # a verifiable receipt: issued, verified, and a forgery caught
 python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
 python3 realworld_test.py                  # the 2,836-command friction check (needs gh)
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent meets a planted injection: it declines, and the gate stands behind it

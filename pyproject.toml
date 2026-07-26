@@ -6,10 +6,14 @@ readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
 authors = [{ name = "Satyawan Singh" }]
-dependencies = ["z3-solver>=4.12"]
+dependencies = ["z3-solver>=4.12", "cryptography>=42"]
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.0"]
+
+[project.scripts]
+agent-guardrail-verify = "agent_guardrail.verify_cli:main"
+agent-guardrail-redact = "agent_guardrail.redact_cli:main"
 
 [project.urls]
 Homepage = "https://github.com/ss1738/agent-guardrail"
