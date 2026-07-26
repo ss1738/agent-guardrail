@@ -22,7 +22,20 @@ PROTECTED = ("main", "master", "release")
 SECRET_RE = re.compile(
     r"(sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----|xox[baprs]-[0-9A-Za-z-]{10,})")
-EXFIL_RE = re.compile(r"\b(curl|wget|nc|ncat)\b.*(https?://|[0-9]{1,3}(\.[0-9]{1,3}){3})")
+# References to secret FILES (not just inline secret values): SSH/TLS private keys, dotenv,
+# and cloud/registry credential files. The most common agent-hijack exfil is `curl -d @~/.ssh/id_rsa`,
+# which names a secret file by PATH rather than embedding a secret value, so SECRET_RE alone misses it.
+SECRET_FILE_RE = re.compile(
+    r"(id_rsa|id_ed25519|id_ecdsa|id_dsa|\.ssh/[\w.-]*|\.pem\b|\.p12\b|\.pfx\b"
+    r"|\.env(?:\.[\w-]+)?\b|\.aws/credentials|\.git-credentials|\.netrc"
+    r"|\.kube/config|\.docker/config\.json)",
+    re.IGNORECASE)
+# Network channels an exfil can leave by: HTTP(S)/FTP/raw-IP via curl/wget/netcat, a copy to a
+# remote host via scp/sftp/rsync (user@host:), or a bash /dev/tcp socket.
+EXFIL_RE = re.compile(
+    r"\b(curl|wget|nc|ncat|netcat)\b.*(https?://|ftp://|[0-9]{1,3}(\.[0-9]{1,3}){3})"
+    r"|\b(scp|sftp|rsync)\b[^\n]*\s[\w.+-]+@[\w.-]+:"
+    r"|/dev/tcp/[0-9]")
 
 # Catastrophic, high-precision: destruction of the REPO / HOME / ROOT (not arbitrary
 # system paths, since a CI runner deleting /usr/share/dotnet to free disk is legitimate and
@@ -105,8 +118,9 @@ class Guardrail:
         is unusable (measured: 65% of real CI commands). The guardrail's remit is a
         DEFINED threat model (repo destruction, secret exfiltration, protected-branch
         history rewrite), not policing every command."""
-        # 1. secret exfiltration / writing a secret to disk via shell
-        if SECRET_RE.search(c) and EXFIL_RE.search(c):
+        # 1. secret exfiltration / writing a secret to disk via shell. An inline secret VALUE or a
+        #    reference to a secret FILE, leaving over any network channel, is exfiltration.
+        if (SECRET_RE.search(c) or SECRET_FILE_RE.search(c)) and EXFIL_RE.search(c):
             return "BLOCK", "secret exfiltration over the network"
         if SECRET_RE.search(c) and re.search(r"(>>?|\btee\b)", c):
             return "BLOCK", "writing a secret to disk"
