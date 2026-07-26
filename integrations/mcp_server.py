@@ -22,12 +22,26 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mcp.server.fastmcp import FastMCP
 from agent_guardrail.guardrail import Guardrail
 from agent_guardrail.executor import Executor
+from agent_guardrail.control_plane import ControlPlane, Policy
 
 WORKSPACE = os.environ.get("GUARDRAIL_WORKSPACE", os.path.join(os.getcwd(), "workspace"))
 os.makedirs(WORKSPACE, exist_ok=True)
 
+
+def _signing_key():
+    """Ed25519 key for the session receipt. Persist it via GUARDRAIL_SIGNING_KEY (hex 32-byte seed) so
+    a relying party can pin one identity across runs; otherwise ephemeral (public key is in the receipt)."""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    seed = os.environ.get("GUARDRAIL_SIGNING_KEY", "")
+    return Ed25519PrivateKey.from_private_bytes(bytes.fromhex(seed)) if seed else Ed25519PrivateKey.generate()
+
+
+AGENT_ID = os.environ.get("GUARDRAIL_AGENT_ID", "agent")
 GUARD = Guardrail()
-EXEC = Executor(WORKSPACE, GUARD)
+POLICY = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"))
+CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key())
+EXEC = Executor(WORKSPACE, GUARD, control_plane=CONTROL)
 mcp = FastMCP("agent-guardrail")
 
 
@@ -58,6 +72,17 @@ def audit_log() -> str:
     return json.dumps({"chain_verifies": GUARD.verify_chain(),
                        "blocked": EXEC.blocked, "executed": EXEC.executed,
                        "log": GUARD.log}, indent=2)
+
+
+@mcp.tool()
+def session_receipt() -> str:
+    """Export a signed, independently-verifiable RECEIPT for this session: the agent id, the committed
+    policy, every gated action with its verdict, and an Ed25519 signature over the tamper-evident chain
+    head. A third party (an auditor, a bank, an insurer) can verify it with the PUBLIC KEY ALONE via
+    agent_guardrail.control_plane.verify_receipt -- proving the agent stayed within policy, without
+    trusting this server or its operator, and catching any forged ALLOW."""
+    r = EXEC.receipt()
+    return r.to_json() if r is not None else json.dumps({"error": "no control plane attached"})
 
 
 if __name__ == "__main__":

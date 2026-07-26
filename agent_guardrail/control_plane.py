@@ -128,14 +128,19 @@ class ControlPlane:
             serialization.Encoding.Raw, serialization.PublicFormat.Raw
         ).hex()
 
-    def gate(self, action: Action) -> str:
-        """Gate one action. Returns the verdict. A BLOCK is recorded as NOT executed (the enforcement
-        guarantee); ALLOW/ESCALATE are recorded as executed."""
-        verdict, reason = self.policy.classify(action)
-        executed = verdict != "BLOCK"
+    def record(self, action: Action, verdict: str, reason: str, executed: bool) -> None:
+        """Append an already-decided action to the trace + chain. Use this from an executor that has
+        its own gate, so the receipt records the REAL outcome (whether the action actually ran, e.g.
+        an ALLOW that a sandbox backstop still refused is recorded as not executed)."""
         ad = asdict(action)
         self._head = _chain_step(self._head, len(self._entries), ad, verdict, reason, executed)
         self._entries.append(Entry(ad, verdict, reason, executed, self._head))
+
+    def gate(self, action: Action) -> str:
+        """Classify + record one action. Returns the verdict. A BLOCK is recorded as NOT executed (the
+        enforcement guarantee); ALLOW/ESCALATE are recorded as executed."""
+        verdict, reason = self.policy.classify(action)
+        self.record(action, verdict, reason, verdict != "BLOCK")
         return verdict
 
     def receipt(self) -> Receipt:
