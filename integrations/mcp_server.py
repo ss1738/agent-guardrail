@@ -38,9 +38,11 @@ def _signing_key():
 
 
 AGENT_ID = os.environ.get("GUARDRAIL_AGENT_ID", "agent")
-# GUARDRAIL_ZK=1 turns on zero-knowledge receipts: git-branch actions carry a ZK proof, so the
-# session receipt can be redacted yet stay provably in-policy (see docs/ZK_ROADMAP.md, experimental).
-ZK = os.environ.get("GUARDRAIL_ZK", "").lower() in ("1", "true", "yes")
+# GUARDRAIL_ZK turns on zero-knowledge receipts: git-branch actions carry a ZK proof, so the session
+# receipt can be redacted yet stay provably in-policy (see docs/ZK_ROADMAP.md, experimental).
+#   "1"/"true"/"modp" -> default (2048-bit) group;  "ec" -> secp256k1 (~10x faster, ~8x smaller).
+_ZK_ENV = os.environ.get("GUARDRAIL_ZK", "").lower()
+ZK = _ZK_ENV if _ZK_ENV in ("modp", "ec") else (_ZK_ENV in ("1", "true", "yes"))
 GUARD = Guardrail()
 POLICY = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"))
 CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key(), zk=ZK)

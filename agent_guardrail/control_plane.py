@@ -31,9 +31,15 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 from . import zk as _zk
+from . import zk_ec as _zk_ec
 from .guardrail import Action, Guardrail
 
 GENESIS = hashlib.sha256(b"agent-control-plane/genesis").hexdigest()
+
+# ZK schemes: name -> (module with commit/prove/verify, its group with ser/deser). Both share the same
+# policy layer (encode/allowed_set in zk); only the group differs. MODP is the reviewed-shape default;
+# secp256k1 ("ec") is ~10x faster / ~8x smaller but is prototype crypto pending external review.
+_SCHEMES = {"modp": (_zk, _zk.MODP), "ec": (_zk_ec, _zk_ec.EC)}
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +83,7 @@ class Entry:
     salt: str = ""               # hex salt (sha) or decimal Pedersen r (zk), or "" if redacted
     zk: dict | None = None       # serialized ZK proof (git-branch entries in zk-mode); None otherwise.
                                  # Zero-knowledge, so it leaks nothing even in a full receipt.
+    zk_group: str = ""           # which ZK group the proof + commitment use ("modp" | "ec"); "" if not zk
 
 
 @dataclass
@@ -140,7 +147,7 @@ def _signing_payload(agent_id: str, policy_root: str, final_head: str, n: int) -
 # ---------------------------------------------------------------------------
 class ControlPlane:
     def __init__(self, agent_id: str, policy: Policy, signing_key: Ed25519PrivateKey | None = None,
-                 zk: bool = False):
+                 zk: bool | str = False):
         self.agent_id = agent_id
         self.policy = policy
         self._key = signing_key or Ed25519PrivateKey.generate()
@@ -149,7 +156,15 @@ class ControlPlane:
         # zk-mode: git-branch actions are committed with a Pedersen commitment and carry an eager
         # zero-knowledge proof, so they can be redacted yet remain provably in-policy. Other action
         # kinds keep the sha-256 commitment (ZK over regex/shell is out of scope; see ZK_ROADMAP).
-        self._zk = zk
+        # zk = True/"modp" -> the reviewed-shape default group; zk = "ec" -> secp256k1 (prototype,
+        # ~10x faster / ~8x smaller, pending external review).
+        self._zk = bool(zk)
+        self._group_name = ""
+        if zk:
+            self._group_name = "modp" if zk is True else str(zk).lower()
+            if self._group_name not in _SCHEMES:
+                raise ValueError(f"unknown zk group {self._group_name!r} (expected one of {list(_SCHEMES)})")
+            self._scheme_mod, self._scheme_group = _SCHEMES[self._group_name]
 
     @property
     def public_key_hex(self) -> str:
@@ -175,15 +190,16 @@ class ControlPlane:
     def _record_zk(self, action: Action, ad: dict, verdict: str, executed: bool) -> None:
         """Record a git-branch action with a Pedersen commitment + an eager ZK proof. The reason is
         generic (verdict only) so a redacted entry leaks nothing via the reason string; the ZK proof
-        is over the SAME commitment that goes into the chain, so a verifier cannot swap in a different
-        action than the one chained."""
+        is over the SAME commitment (serialized by the chosen group) that goes into the chain, so a
+        verifier cannot swap in a different action than the one chained."""
         m = _zk.encode(action.op, action.branch, int(action.force), int(action.hard))
-        C, r = _zk.commit(m)
-        proof = _zk.prove(action, r)
-        commit, salt, reason = str(C), str(r), f"git-branch policy: {verdict}"
+        C, r = self._scheme_mod.commit(m)
+        proof = self._scheme_mod.prove(action, r)
+        commit, salt, reason = self._scheme_group.ser(C), str(r), f"git-branch policy: {verdict}"
         self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
         self._entries.append(
-            Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt, zk=proof.to_dict())
+            Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt,
+                  zk=proof.to_dict(), zk_group=self._group_name)
         )
 
     def gate(self, action: Action) -> str:
@@ -270,21 +286,25 @@ def verify_receipt(
             act, salt = witness[str(i)]["action"], witness[str(i)]["salt"]
 
         if e.zk is not None:
+            name = e.zk_group or "modp"   # "" defaults to modp for receipts predating the group field
+            if name not in _SCHEMES:
+                return VerifyResult(False, f"entry {i}: unknown zk group {name!r}")
+            scheme_mod, scheme_group = _SCHEMES[name]
             proof = _zk.ZKProof.from_dict(e.zk)
             if proof.verdict != e.verdict:
                 return VerifyResult(False, f"entry {i}: zk proof verdict does not match the recorded verdict")
             try:
-                C = int(e.commit)
-            except ValueError:
-                return VerifyResult(False, f"entry {i}: zk entry has a non-numeric commitment")
-            if not _zk.verify(C, proof):
+                C = scheme_group.deser(e.commit)
+            except (ValueError, TypeError):
+                return VerifyResult(False, f"entry {i}: malformed zk commitment for group {name!r}")
+            if not scheme_mod.verify(C, proof):
                 return VerifyResult(False, f"entry {i}: invalid zk proof (action not provably {e.verdict})")
             if act is not None:  # disclosed: bind the revealed action to the SAME commitment
                 if not salt:
                     return VerifyResult(False, f"entry {i}: disclosed zk action is missing its randomness")
                 m = _zk.encode(act.get("op", ""), act.get("branch", ""),
                                int(act.get("force", 0)), int(act.get("hard", 0)))
-                if _zk.commit(m, int(salt))[0] != C:
+                if scheme_group.ser(scheme_mod.commit(m, int(salt))[0]) != e.commit:
                     return VerifyResult(False, f"entry {i}: disclosed action does not match its zk commitment")
                 try:
                     v, _ = policy.classify(Action(**act))

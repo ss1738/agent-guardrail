@@ -8,7 +8,9 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+from agent_guardrail import ec
 from agent_guardrail import zk as _zk
+from agent_guardrail import zk_ec as _zk_ec
 from agent_guardrail.control_plane import (
     GENESIS,
     ControlPlane,
@@ -143,6 +145,72 @@ def test_unmodeled_git_op_falls_back_to_sha_not_dropped():
     assert r.entries[1].zk is not None                                  # push -> zk
     assert r.entries[2].zk is None and len(r.entries[2].commit) == 64   # status -> sha
     assert verify_receipt(_roundtrip(r), POLICY).ok
+
+
+def _session_ec(key=None):
+    cp = ControlPlane("acme/zk-agent", POLICY, signing_key=key, zk="ec")
+    cp.gate(Action("git", op="push", branch="main", force=True))    # BLOCK (ec zk)
+    cp.gate(Action("git", op="commit", branch="dev"))               # ALLOW (ec zk)
+    cp.gate(Action("git", op="rebase", branch="release"))           # BLOCK (ec zk)
+    cp.gate(Action("shell", cmd="cargo test"))                      # ALLOW (sha)
+    return cp
+
+
+def test_ec_mode_entries_tagged_and_verify():
+    r = _session_ec().receipt()
+    git = [e for e in r.entries if e.zk is not None]
+    assert git and all(e.zk_group == "ec" for e in git)
+    # ec commitments are 33-byte compressed points (66 hex chars), not decimal integers
+    assert all(len(e.commit) == 66 for e in git)
+    assert verify_receipt(_roundtrip(r), POLICY).ok
+
+
+def test_ec_mode_redacted_stays_sound():
+    r = _session_ec().receipt()
+    shell_idx = [i for i, e in enumerate(r.entries) if e.zk is None]
+    red, _ = r.redact(reveal=shell_idx)          # hide all git, keep shell
+    v = verify_receipt(_roundtrip(red), POLICY)
+    assert v.ok and "3 via zk proof" in v.reason, v.reason
+
+
+def _resign_ec_forgery(r, key):
+    for e in r.entries:
+        if e.zk is not None and e.verdict == "BLOCK":
+            e.verdict, e.executed, e.reason = "ALLOW", True, "git-branch policy: ALLOW"
+            e.zk = _zk_ec.simulate_all(ec.decompress(e.commit), "ALLOW").to_dict()
+    head = GENESIS
+    for i, e in enumerate(r.entries):
+        head = _chain_step(head, i, e.commit, e.verdict, e.reason, e.executed)
+        e.head = head
+    r.final_head = head
+    r.signature = key.sign(_signing_payload(r.agent_id, r.policy_root, head, len(r.entries))).hex()
+    return r
+
+
+def test_ec_mode_resigned_forgery_caught():
+    key = Ed25519PrivateKey.generate()
+    r = _roundtrip(_session_ec(key).receipt())
+    assert verify_receipt(_roundtrip(r), POLICY).ok
+    v = verify_receipt(_resign_ec_forgery(r, key), POLICY)
+    assert not v.ok and "invalid zk proof" in v.reason, v.reason
+
+
+def test_ec_receipt_smaller_than_modp():
+    ec_len = len(_session_ec().receipt().to_json())
+    modp_len = len(_session().receipt().to_json())
+    assert ec_len < modp_len / 3, f"ec {ec_len} vs modp {modp_len}"
+
+
+def test_group_swap_and_unknown_group_fail_closed():
+    # zk_group is a verification hint (not chained). Swapping it to another/unknown group must fail,
+    # because the commitment cannot be deserialized under the wrong group.
+    for bad in ("modp", "bogus"):
+        r = _roundtrip(_session_ec().receipt())
+        for e in r.entries:
+            if e.zk is not None:
+                e.zk_group = bad
+        v = verify_receipt(r, POLICY)
+        assert not v.ok, f"{bad}: {v.reason}"
 
 
 def test_default_mode_unchanged_no_zk():
