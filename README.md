@@ -26,7 +26,7 @@ agent-guardrail-verify receipt.json
 # VERIFIED: verified: 6 actions, policy acme-prod-agent-policy, untampered and sound
 ```
 
-`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert, delete, reorder, or alter), (3) the Ed25519 signature is valid, and (4) it re-runs the committed policy over the trace. Check 4 is the one that matters: a forged `ALLOW` on an action the policy would `BLOCK` is caught even when the operator re-chains and re-signs with their own key. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy.
+`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert, delete, reorder, or alter), (3) the Ed25519 signature is valid, and (4) it re-runs the committed policy over the trace. Check 4 is the one that matters: a forged `ALLOW` on an action the policy would `BLOCK` is caught even when the operator re-chains and re-signs with their own key. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy. Relying parties who would rather not run Python can `agent-guardrail-serve` the same check over HTTP: `POST /verify` a receipt and get a JSON yes/no under the policy the server holds.
 
 ```bash
 python3 demo_receipt.py   # a gated session -> VERIFIED independently -> operator forges + re-signs -> CAUGHT
