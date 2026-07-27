@@ -1,8 +1,8 @@
-"""demo_zk_receipt.py -- the Agent Control Plane with zero-knowledge receipts (ZK_ROADMAP milestone 2).
+"""demo_zk_receipt.py: the Agent Control Plane with zero-knowledge receipts (ZK_ROADMAP milestone 2).
 
 demo_receipt.py showed the trade-off: to prove a verdict sound, you disclose the action. This removes
 it for the git-branch policy. The operator runs a gated session in zk-mode, then REDACTS every action
--- no commands, no branches, no file contents leave the box -- and a third party can STILL verify that
+so that no commands, no branches, or file contents leave the box, and a third party can STILL verify that
 each git action was correctly classified, and still catch a forged "it was allowed".
 
     python3 demo_zk_receipt.py
@@ -78,7 +78,7 @@ def main():
 
     line("=")
     print("Every action hidden, yet each git verdict provably correct, and the forgery still caught.")
-    print("(Prototype crypto -- Fiat-Shamir in ROM; external review required before it is a guarantee.)\n")
+    print("(Prototype crypto, Fiat-Shamir in ROM; external review required before it is a guarantee.)\n")
 
 
 if __name__ == "__main__":

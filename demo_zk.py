@@ -1,8 +1,8 @@
-"""demo_zk.py -- zero-knowledge receipt for the git-branch policy (ZK_ROADMAP milestone 1).
+"""demo_zk.py: zero-knowledge receipt for the git-branch policy (ZK_ROADMAP milestone 1).
 
 The plaintext receipt forces a choice: disclose an action (leaks the command) or redact it (lose the
 soundness proof). This removes the choice. The operator commits to an action and attaches a ZK proof
-that the committed action is one the policy classifies as the recorded verdict -- the verifier learns
+that the committed action is one the policy classifies as the recorded verdict, the verifier learns
 the verdict is correct WITHOUT ever seeing the action, and a forged verdict is still caught.
 
     python3 demo_zk.py
@@ -46,7 +46,7 @@ def main():
 
     line("=")
     print("Fully private AND provably in-policy. A forged verdict is caught with zero disclosure.")
-    print("(Prototype crypto -- Fiat-Shamir in ROM; external review required before it is a guarantee.)\n")
+    print("(Prototype crypto, Fiat-Shamir in ROM; external review required before it is a guarantee.)\n")
 
 
 if __name__ == "__main__":

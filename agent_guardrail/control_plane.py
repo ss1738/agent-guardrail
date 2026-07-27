@@ -274,7 +274,7 @@ def verify_receipt(
 
     # (3) soundness. Two ways an entry can be proven sound:
     #   - zk proof: the ZK proof is over the SAME Pedersen commitment that is in the chain, so it
-    #     proves the *chained* action is one the policy classifies as the recorded verdict -- WITHOUT
+    #     proves the *chained* action is one the policy classifies as the recorded verdict, WITHOUT
     #     disclosing it. A relabelled verdict cannot produce an accepting proof over that commitment.
     #   - disclosure: re-run the committed policy on the revealed action and reproduce its verdict.
     # A forged ALLOW is caught by either, even when re-chained and re-signed. Redacted entries with

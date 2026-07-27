@@ -1,4 +1,4 @@
-"""`agent-guardrail-redact` -- strip a receipt's raw actions for sharing, keeping the proof valid.
+"""`agent-guardrail-redact`: strip a receipt's raw actions for sharing, keeping the proof valid.
 
 An operator holds a full receipt (with the raw commands and file contents). To share it with an auditor
 or insurer without leaking that content, redact it: the signature and integrity survive (the chain is

@@ -31,7 +31,7 @@ _TAG = "modp/2048"
 # ---------------------------------------------------------------------------
 # Group: RFC 3526 2048-bit MODP safe prime; work in the order-q QR subgroup.
 # g and h are nothing-up-my-sleeve generators (h derived by hashing, so its
-# discrete log to base g is unknown -- required for Pedersen binding).
+# discrete log to base g is unknown, required for Pedersen binding).
 # _group_ok() re-derives and re-checks these, so a transcription slip fails loudly.
 # ---------------------------------------------------------------------------
 _P_HEX = (
@@ -133,7 +133,7 @@ def _group_ok() -> bool:
 # ---------------------------------------------------------------------------
 # The git-branch policy's finite action domain, and its encoding to a group message.
 # branch collapses to {each protected branch} + one "non-protected" token, because the
-# policy decides only on protected-membership -- so the domain is finite and the set S_V
+# policy decides only on protected-membership, so the domain is finite and the set S_V
 # is exactly the policy's preimage of V. (Group-independent; shared by every backend.)
 # ---------------------------------------------------------------------------
 _OPS = ("push", "reset", "rebase", "commit", "branch")

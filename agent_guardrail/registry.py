@@ -1,7 +1,7 @@
 """Agent identity registry: bind an agent_id to a pinned Ed25519 public key.
 
 A receipt is internally sound on its own (chain + signature + policy re-run), but it carries its OWN
-public key -- so on its own it proves "*some* key signed a policy-compliant trace", not "*this agent's*
+public key, so on its own it proves "*some* key signed a policy-compliant trace", not "*this agent's*
 key did". The relying party closes that gap by pinning each agent's public key out-of-band, once, in a
 registry they control (exactly how a CA or an SSH known_hosts file works). Verification then also checks
 the receipt's key matches the registered identity.

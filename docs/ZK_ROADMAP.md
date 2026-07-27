@@ -1,18 +1,18 @@
-# Zero-knowledge receipts — design & roadmap
+# Zero-knowledge receipts - design & roadmap
 
 The selective-disclosure receipt (commitment + witness) lets an operator prove soundness for the
 actions they *reveal*. The ZK step removes the trade-off: prove that a hidden action satisfied the
 committed policy **without revealing the action at all**. This is where the founder's ZK stack
 (Groth16 / Nova / BLS, and `proof-of-inference`) plugs in.
 
-This doc scopes it so the crypto is built deliberately and reviewed — not rushed into a security repo.
+This doc scopes it so the crypto is built deliberately and reviewed - not rushed into a security repo.
 
 ## The predicate to prove
 
 For each entry, prove in zero knowledge:
 
 > "I know an action `A` and salt `s` such that `commit == SHA256(canonical(A) || s)`, and
-> `policy(A) == V`" — where `commit`, the policy commitment, and the recorded verdict `V` are public,
+> `policy(A) == V`" - where `commit`, the policy commitment, and the recorded verdict `V` are public,
 > and `A` and `s` stay hidden.
 
 A verifier then gets the *same* guarantee as the soundness re-run (the recorded verdict is correct for
@@ -22,7 +22,7 @@ unchanged.
 
 ## Tractable scope first: the git-branch sub-policy
 
-Do not attempt the full ruleset first. The shell/secret rules are regex over unbounded strings — a
+Do not attempt the full ruleset first. The shell/secret rules are regex over unbounded strings - a
 genuine SNARK-over-regex problem, expensive and error-prone. The **git-branch policy is the right first
 target**, for the same reason it is the one already z3-checked:
 
@@ -41,7 +41,7 @@ that split honestly (mirrors the existing "proven vs heuristic" table).
    git-branch policy is small and enumerable, prove "the committed action is one of the elements of the
    set `S_V = { A : policy(A) = V }`" with a Fiat-Shamir OR-composition over Pedersen commitments
    (`py_ecc` / an ed25519- or BLS12-381-based group). Real ZK, ~200 lines, but **easy to get subtly
-   wrong** (challenge splitting, the simulator) — needs careful tests for *soundness* (a false claim
+   wrong** (challenge splitting, the simulator) - needs careful tests for *soundness* (a false claim
    cannot produce a valid proof) and *zero-knowledge* (the transcript is simulatable without the
    witness) plus, ideally, an external review before it ships.
 2. **SNARK (Groth16/Nova) over a small circuit.** Express `commit == H(A‖s) ∧ policy(A) == V` as a
@@ -62,7 +62,7 @@ move to path 2 if/when a customer or underwriter needs it at scale.
 
 ## Milestones
 
-1. **DONE** — Sigma OR-proof for the git-branch policy (`agent_guardrail/zk.py`, `tests/test_zk.py`,
+1. **DONE** - Sigma OR-proof for the git-branch policy (`agent_guardrail/zk.py`, `tests/test_zk.py`,
    `demo_zk.py`). CDS OR-composition of Schnorr statements over Pedersen commitments in the order-Q QR
    subgroup of the RFC 3526 2048-bit safe prime (the group is re-checked at test time via Miller-Rabin,
    so a bad constant fails loudly). 12/12 tests: correctness, soundness (the strongest witness-free
@@ -73,10 +73,10 @@ move to path 2 if/when a customer or underwriter needs it at scale.
    (~1.8 KB/clause). The cost is 2048-bit modexp in CPython; a 256-bit elliptic-curve group (milestone 4)
    would cut both time and size by ~1-2 orders of magnitude. Adequate for the prototype's purpose:
    prove the UX and the interface.
-2. **DONE** — Wired into `Entry.zk` + `verify_receipt` (`control_plane.py`, `tests/test_zk_receipt.py`,
+2. **DONE** - Wired into `Entry.zk` + `verify_receipt` (`control_plane.py`, `tests/test_zk_receipt.py`,
    `demo_zk_receipt.py`). Resolution of the binding problem: in zk-mode (`ControlPlane(..., zk=True)`)
    a git-branch entry's chain commitment IS the decimal Pedersen `C`, and the eager ZK proof is over
-   that same `C` -- so the proof speaks about the exact action that was chained; there is no second
+   that same `C`, so the proof speaks about the exact action that was chained; there is no second
    commitment to reconcile. The proof is zero-knowledge, so it is carried even in a full receipt and
    simply survives redaction (which strips only the action + randomness). The entry's reason is generic
    (`git-branch policy: <verdict>`) so redaction leaks nothing via the reason. `verify_receipt` verifies
@@ -94,7 +94,7 @@ move to path 2 if/when a customer or underwriter needs it at scale.
    prove/verify (~110 ms vs ~1.1 s) and ~8x smaller (~5.6 KB vs ~44 KB)**. 10/10 EC tests mirror the
    MODP property tests (correctness, soundness, ZK, serialization). Note: the affine path alone is
    *slower* than MODP in Python (per-step inverse); the Jacobian path is what delivers the speed. EC is
-   standalone groundwork -- `control_plane` still defaults to MODP; switching it is a one-line group
+   standalone groundwork, `control_plane` still defaults to MODP; switching it is a one-line group
    swap once the crypto is externally reviewed (milestone 3).
 
    Still later / demand-driven: a SNARK path via `proof-of-inference` to widen beyond the git-branch
@@ -102,7 +102,7 @@ move to path 2 if/when a customer or underwriter needs it at scale.
 
 ## Honest limits
 
-- ZK here proves *policy satisfaction over the committed action*, not the model's intent — the same
+- ZK here proves *policy satisfaction over the committed action*, not the model's intent - the same
   boundary as the plaintext receipt (see `CONTROL_PLANE_TRUST_MODEL.md`).
 - Regex/shell rules over unbounded input are out of scope for the first version; they stay on
   commitment+witness selective disclosure.

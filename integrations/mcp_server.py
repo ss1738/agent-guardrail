@@ -84,7 +84,7 @@ def session_receipt(redact: bool = False) -> str:
     """Export a signed, independently-verifiable RECEIPT for this session: the agent id, the committed
     policy, every gated action with its verdict, and an Ed25519 signature over the tamper-evident chain
     head. A third party (an auditor, a bank, an insurer) can verify it with the PUBLIC KEY ALONE via
-    agent_guardrail.control_plane.verify_receipt -- proving the agent stayed within policy, without
+    agent_guardrail.control_plane.verify_receipt, proving the agent stayed within policy, without
     trusting this server or its operator, and catching any forged ALLOW.
 
     redact=True strips every raw action (commands, file contents, branches) before returning. In

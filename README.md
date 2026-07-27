@@ -7,28 +7,30 @@
   <img src="docs/demo.svg" alt="A hijacked coding agent tries to force-push main, rm -rf the repo, leak a secret and wipe CI; agent-guardrail blocks every one while the real fix goes through" width="760">
 </p>
 
-**A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell` / `write_file` / `git` call is checked before it executes. It stops the actions that wreck a repository (force-pushing `main`, `rm -rf` the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave. As a bonus, its git-branch sub-policy is machine-checked by z3, which is a property almost no guardrail has: the policy can check itself for gaps. Everything else is high-precision heuristics, and this README is explicit about which is which.**
+A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell`, `write_file`, and `git` call is checked before it executes. It blocks the actions that wreck a repository (force-pushing `main`, `rm -rf` on the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave.
 
-Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model: it checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
+Its git-branch sub-policy is machine-checked by z3, so the policy can find its own gaps. That is a property almost no guardrail has. Everything else is high-precision heuristics, and this README says which is which.
+
+Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model. It checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
 
 ## Beyond the gate: verifiable receipts (Agent Control Plane)
 
-The gate stops bad actions. The **Agent Control Plane** adds the other half a relying party actually needs: a signed **receipt** that anyone can verify *without trusting you or your server*. Bind an agent identity to a named, committed policy, gate its tool calls, and export a receipt — the agent id, the policy commitment, every gated action with its verdict, and an Ed25519 signature over a tamper-evident hash chain. An auditor, a bank, or an insurer verifies it with the **public key alone**:
+The gate stops bad actions. The Agent Control Plane adds the other half a relying party needs: a signed receipt that anyone can verify without trusting you or your server. Bind an agent identity to a named, committed policy, gate its tool calls, and export a receipt. The receipt holds the agent id, the policy commitment, every gated action with its verdict, and an Ed25519 signature over a tamper-evident hash chain. An auditor, a bank, or an insurer verifies it with the public key alone:
 
 ```bash
 agent-guardrail-verify receipt.json
 # VERIFIED: verified: 6 actions, policy acme-prod-agent-policy, untampered and sound
 ```
 
-`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert / delete / reorder / alter), (3) the Ed25519 signature is valid, and (4) — the one that matters — it **re-runs the committed policy over the trace**, so a forged `ALLOW` on an action the policy would `BLOCK` is caught *even when the operator re-chains and re-signs with their own key*. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy.
+`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert, delete, reorder, or alter), (3) the Ed25519 signature is valid, and (4) it re-runs the committed policy over the trace. Check 4 is the one that matters: a forged `ALLOW` on an action the policy would `BLOCK` is caught even when the operator re-chains and re-signs with their own key. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy.
 
 ```bash
 python3 demo_receipt.py   # a gated session -> VERIFIED independently -> operator forges + re-signs -> CAUGHT
 ```
 
-A receipt carries its own key, so on its own it proves *some* key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`agent-guardrail-verify receipt.json --registry agents.json`), and verification also proves the receipt is from *that* agent — an attacker who signs a compliant trace but impersonates a registered identity is rejected.
+A receipt carries its own key, so on its own it proves that some key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`agent-guardrail-verify receipt.json --registry agents.json`), and verification also proves the receipt is from that agent. An attacker who signs a compliant trace but impersonates a registered identity is rejected.
 
-**Privacy — redact without breaking the proof.** The chain is over a salted commitment of each action, so `receipt.redact()` strips the raw commands and file contents while the signature and integrity stay valid; a witness discloses any *subset* of actions to prove those verdicts sound. You can hand an insurer proof your agent stayed in policy without handing them your production commands. The verification result states exactly how much was disclosed, so a partly-redacted receipt is never mistaken for a fully-sound one.
+**Privacy: redact without breaking the proof.** The chain is over a salted commitment of each action, so `receipt.redact()` strips the raw commands and file contents while the signature and integrity stay valid. A witness discloses any subset of actions to prove those verdicts sound. You can hand an insurer proof your agent stayed in policy without handing them your production commands. The verification result states exactly how much was disclosed, so a partly-redacted receipt is never mistaken for a fully-sound one.
 
 ```bash
 agent-guardrail-redact receipt.json --out redacted.json --witness witness.json
@@ -36,13 +38,13 @@ agent-guardrail-verify redacted.json                        # integrity + authen
 agent-guardrail-verify redacted.json --witness witness.json  # + full soundness, from the witness
 ```
 
-**Zero-knowledge receipts (experimental, git-branch policy only).** Selective disclosure still forces a choice for each action: reveal it, or lose its soundness proof. In zk-mode (`ControlPlane(agent_id, policy, zk=True)`) a git-branch action instead carries a zero-knowledge proof that it is one the policy classifies as the recorded verdict, over the same commitment that is in the chain. You can redact the action entirely and a verifier still confirms the verdict is correct, and still catches a forged "it was allowed" (`demo_zk_receipt.py`). The proof runs over a pluggable group: the default is a 2048-bit MODP group; `zk="ec"` selects secp256k1, which is roughly 10x faster and 8x smaller (measured). This is prototype cryptography (a Sigma OR-proof with Fiat-Shamir in the random-oracle model) and needs external review before it is relied on as a guarantee; the design, scope, and roadmap are in [docs/ZK_ROADMAP.md](docs/ZK_ROADMAP.md).
+**Zero-knowledge receipts (experimental, git-branch policy only).** Selective disclosure still forces a choice per action: reveal it, or lose its soundness proof. In zk-mode (`ControlPlane(agent_id, policy, zk=True)`) a git-branch action instead carries a zero-knowledge proof that it is one the policy classifies as the recorded verdict, over the same commitment that is in the chain. You can redact the action entirely and a verifier still confirms the verdict is correct, and still catches a forged "it was allowed" (`demo_zk_receipt.py`). The proof runs over a pluggable group: the default is a 2048-bit MODP group, and `zk="ec"` selects secp256k1, which is about 10x faster and 8x smaller (measured). This is prototype cryptography (a Sigma OR-proof with Fiat-Shamir in the random-oracle model) and needs external review before it is relied on as a guarantee. The design, scope, and roadmap are in [docs/ZK_ROADMAP.md](docs/ZK_ROADMAP.md).
 
-Over the MCP server, a `session_receipt` tool exports the receipt for the session. **Scope, honestly:** the receipt proves the recorded trace was gated soundly under the committed policy; it does not prove the model's intent, and its enforcement is exactly as strong as the ruleset and the gate being out-of-process (the same assumption as the gate — see Assumptions below). What a `VERIFIED` receipt guarantees, and what it does not, is stated precisely in [docs/CONTROL_PLANE_TRUST_MODEL.md](docs/CONTROL_PLANE_TRUST_MODEL.md) — the document a security review or an insurer should read.
+Over the MCP server, a `session_receipt` tool exports the receipt for the session. Scope, stated plainly: the receipt proves the recorded trace was gated soundly under the committed policy. It does not prove the model's intent, and its enforcement is exactly as strong as the ruleset and the gate being out-of-process (the same assumption as the gate, described under Assumptions below). What a `VERIFIED` receipt guarantees, and what it does not, is set out in [docs/CONTROL_PLANE_TRUST_MODEL.md](docs/CONTROL_PLANE_TRUST_MODEL.md), the document a security review or an insurer should read.
 
 ## What is proven vs. what is heuristic
 
-Being precise about this up front, because it is the whole point:
+This is stated up front because it is the point of the project:
 
 | Threat | How it is enforced | Guarantee |
 |---|---|---|
@@ -52,7 +54,7 @@ Being precise about this up front, because it is the whole point:
 | Emptying a CI workflow file | path + content check | heuristic |
 | Everything else a build/test agent does | default allow | not policed (by design) |
 
-"Heuristic" means it catches the direct forms and is intentionally bypassable by a determined obfuscator (`rm -r -f`, `$IFS`, base64, aliases). It raises the cost of an accident or a naive injection; it is not a sandbox. For hard isolation, pair it with seccomp/gVisor (see "How it compares").
+"Heuristic" means it catches the direct forms and is intentionally bypassable by a determined obfuscator (`rm -r -f`, `$IFS`, base64, aliases). It raises the cost of an accident or a naive injection. It is not a sandbox. For hard isolation, pair it with seccomp/gVisor (see "How it compares").
 
 ## The demo (measured, reproducible)
 
@@ -92,7 +94,7 @@ This guarantee covers the structured git tool-call path only. It does not verify
 | CodeQL / Copilot Autofix | static analysis | vulnerabilities in code | analyses code at rest; says nothing about what an agent does to the repo at runtime |
 | git hooks + a shell allowlist | local | some of the same patterns | cannot prove the policy is gap-free; this is the piece z3 adds |
 
-Short version: this is not a sandbox and not a linter. It is an action-level gate for coding agents, with a formally checked core for the one sub-policy where a proof is tractable. Use it in front of a sandbox, not instead of one.
+In short: this is not a sandbox and not a linter. It is an action-level gate for coding agents, with a formally checked core for the one sub-policy where a proof is tractable. Use it in front of a sandbox, not instead of one.
 
 ## Validated for false friction (not for attack detection)
 
@@ -107,23 +109,23 @@ It was then re-run on a larger, less hand-picked sample to check for selection b
 
 That bigger sample earned its keep: it caught **four false positives the small one missed** (`rm -f ../private.key` and `rm -rf ./bin/build_deps`, a specific file and a sub-path, which the `rm` rule was over-matching as repo destruction). Fixed, and all four are now regression tests. This is why the number is trustworthy: it was tested on code it did not choose, and the failures it found were fixed rather than hidden.
 
-Read this honestly: with a default-allow design, a low false-block rate on legitimate commands is the *target*, not a surprise. The value of the corpus is the opposite failures it surfaces (v0 was fail-closed and blocked two-thirds of normal CI; the rm rule over-matched real sub-path deletes) and that they get fixed. This corpus does **not** measure attack detection; it contains no adversarial commands. Attack behaviour is covered by the demo and the tests, not by this number.
+Read this straight: with a default-allow design, a low false-block rate on legitimate commands is the target, not a surprise. The value of the corpus is the opposite failures it surfaces (v0 was fail-closed and blocked two-thirds of normal CI; the rm rule over-matched real sub-path deletes) and that they get fixed. This corpus does **not** measure attack detection; it contains no adversarial commands. Attack behaviour is covered by the demo and the tests, not by this number.
 
 ## Assumptions and limits
 
 - **The gate must be out-of-process from the agent.** If the agent can edit the guardrail or read the HMAC key, it can bypass or forge. The audit chain is tamper-evident only under the assumption that the key is not accessible to the agent (a wrapper process or separate service, not an in-process import the agent controls). See [THREAT_MODEL.md](THREAT_MODEL.md).
 - **Shell coverage is best-effort.** A determined attacker obfuscates around the regexes. Treat shell blocking as defense-in-depth, not a boundary.
 - **A well-aligned agent will often refuse an injection on its own.** In `demo_hijack.py` a real Claude agent read the planted note and declined it. The gate's value is being the deterministic backstop for when alignment fails.
-- **Integration is via MCP** (see below). The formal guarantee still covers only the git-branch policy wherever the gate runs.
+- **Integration is via MCP or a function-calling loop** (see below). The formal guarantee still covers only the git-branch policy wherever the gate runs.
 
 ## Use it with any MCP agent
 
 The gate runs as an [MCP](https://modelcontextprotocol.io) server, the tool-call
 surface that Claude Desktop, Cursor, Copilot, and Windsurf all speak. Point an MCP
-client at it and every `run_shell` / `write_file` / `git` call the agent makes is
+client at it and every `run_shell`, `write_file`, or `git` call the agent makes is
 gated in the protocol path, before it touches the repo. No trust in the agent.
 
-This holds only if the MCP server is the agent's *only* route to shell, git, and
+This holds only if the MCP server is the agent's only route to shell, git, and
 files. An agent that also has an unguarded raw shell, or that can edit the server
 file, bypasses the gate. Run it out-of-process and give the agent no other
 execution path. See [THREAT_MODEL.md](THREAT_MODEL.md).
@@ -144,20 +146,20 @@ blocked inside the protocol:
 
 ```
 Tools exposed to the agent via MCP: run_shell, write_file, git, audit_log
-  ▶ write_file('calc.py')                wrote calc.py           (the fix)
-  ▶ git('add calc.py')                   ok
-  ⛔ git('push origin main --force')      BLOCK  force-push to protected branch 'main'
-  ⛔ run_shell('rm -rf .git')             BLOCK  recursive delete of the repo
-  ⛔ write_file('config.py' w/ token)     BLOCK  writing a secret to disk
-  ⛔ run_shell('curl ... -d ghp_...')     BLOCK  secret exfiltration over the network
-  ⛔ write_file('.github/workflows/...')  BLOCK  emptying CI config
-  ▶ run_shell('cargo build --release')   allowed
+  > write_file('calc.py')                wrote calc.py           (the fix)
+  > git('add calc.py')                   ok
+  x git('push origin main --force')      BLOCK  force-push to protected branch 'main'
+  x run_shell('rm -rf .git')             BLOCK  recursive delete of the repo
+  x write_file('config.py' w/ token)     BLOCK  writing a secret to disk
+  x run_shell('curl ... -d ghp_...')     BLOCK  secret exfiltration over the network
+  x write_file('.github/workflows/...')  BLOCK  emptying CI config
+  > run_shell('cargo build --release')   allowed
 blocked: 5   allowed: 4    .git intact, no secret, CI intact, fix applied, audit chain verifies
 ```
 
 ## Use it in any function-calling agent (no MCP)
 
-Most agents are not MCP -- they run an OpenAI / Anthropic tool-calling loop. The same gate drops into
+Most agents are not MCP. They run an OpenAI or Anthropic tool-calling loop. The same gate drops into
 that loop with no SDK dependency, because a tool call is just a `(name, arguments)` pair. Register the
 tools, then route every call through the `ToolGate`:
 
@@ -173,10 +175,10 @@ for call in response.tool_calls:                       # your normal loop
 receipt = gate.receipt()                               # signed, independently verifiable
 ```
 
-Every call is gated before it runs; unknown tools and malformed arguments are refused fail-closed (a
-hijacked model cannot crash the loop or slip past the gate). `integrations/demo_function_calling.py`
+Every call is gated before it runs. Unknown tools and malformed arguments are refused fail-closed, so a
+hijacked model cannot crash the loop or slip past the gate. `integrations/demo_function_calling.py`
 runs the whole loop end-to-end against a real repo. This holds only if the `ToolGate` is the agent's
-*only* route to shell, git, and files (the same out-of-process assumption as the MCP path).
+only route to shell, git, and files (the same out-of-process assumption as the MCP path).
 
 ## Run it
 
@@ -184,7 +186,8 @@ runs the whole loop end-to-end against a real repo. This holds only if the `Tool
 pip install -e .                           # installs the package + the `agent-guardrail-verify` command
 # (or, to just run the scripts below without the CLI: pip install z3-solver cryptography "mcp")
 python3 tests/test_guardrail.py            # 11 tests (the gate)
-python3 tests/test_control_plane.py        # 18 tests (verifiable receipts + 0/500 forgeries caught)
+python3 tests/test_control_plane.py        # 34 tests (verifiable receipts + 0/500 forgeries caught)
+python3 tests/test_tool_gate.py            # 7 tests (the function-calling adapter)
 python3 demo_compare.py                    # with and without the gate, on a real repo
 python3 demo_receipt.py                    # a verifiable receipt: issued, verified, and a forgery caught
 python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
@@ -193,7 +196,7 @@ python3 realworld_test.py                  # the 2,836-command friction check (n
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent meets a planted injection: it declines, and the gate stands behind it
 ```
 
-The interception itself (an attack actually being blocked) is shown by `demo_compare.py` and `integrations/demo_mcp.py`. `demo_hijack.py` shows the complementary case: a well-behaved real agent, where the gate adds no friction and waits as the backstop.
+The interception itself (an attack actually being blocked) is shown by `demo_compare.py` and `integrations/demo_mcp.py`. `demo_hijack.py` shows the other case: a well-behaved real agent, where the gate adds no friction and waits as the backstop.
 
 ## Status
 

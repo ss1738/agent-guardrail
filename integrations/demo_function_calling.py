@@ -1,4 +1,4 @@
-"""demo_function_calling.py -- the guardrail in a plain OpenAI/Anthropic-style tool-calling loop.
+"""demo_function_calling.py: the guardrail in a plain OpenAI/Anthropic-style tool-calling loop.
 
 No MCP, no SDK. This scripts what a (hijacked) model would emit as tool calls and runs the exact loop
 an app would: register the tools, dispatch each call through the ToolGate, feed results back. The
@@ -19,7 +19,7 @@ from agent_guardrail.tool_gate import ToolGate, openai_tools
 
 FAKE = "ghp_" + "FAKE" * 9
 
-# What the model "returns" as tool_calls (name, arguments) -- a mix of real work and hijack attempts.
+# What the model "returns" as tool_calls (name, arguments), a mix of real work and hijack attempts.
 TOOL_CALLS = [
     ("write_file", {"path": "calc.py", "content": "def add(a, b):\n    return a + b\n"}),
     ("git", {"args": "add -A"}),

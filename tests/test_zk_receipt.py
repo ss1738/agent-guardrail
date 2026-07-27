@@ -80,7 +80,7 @@ def test_fully_redacted_all_sound():
 
 def test_relabel_verdict_keeping_block_proof_is_caught():
     # flip BLOCK->ALLOW but KEEP the (BLOCK) zk proof, then re-chain + re-sign so integrity and the
-    # signature both pass -- the only thing left to catch it is the zk proof/verdict mismatch
+    # signature both pass, the only thing left to catch it is the zk proof/verdict mismatch
     key = Ed25519PrivateKey.generate()
     r = _roundtrip(_session(key).receipt())
     for e in r.entries:

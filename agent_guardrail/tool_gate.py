@@ -1,6 +1,6 @@
 """ToolGate: drop the guardrail into ANY function-calling agent loop, no MCP required.
 
-Most agents are not MCP -- they run an OpenAI / Anthropic "tool calling" loop: the model emits a tool
+Most agents are not MCP, they run an OpenAI / Anthropic "tool calling" loop: the model emits a tool
 name + a JSON arguments object, the app executes it, and feeds the result back. That shape is identical
 across providers, so this adapter needs no SDK. Wrap your tool dispatch in one call:
 

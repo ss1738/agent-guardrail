@@ -1,4 +1,4 @@
-"""`agent-guardrail-verify` -- the relying-party side of the Agent Control Plane.
+"""`agent-guardrail-verify`: the relying-party side of the Agent Control Plane.
 
 An auditor, bank, or insurer receives a receipt (JSON) and checks it against the policy THEY hold and,
 optionally, a public key THEY have pinned to the agent's identity. No operator secret, no trust in the

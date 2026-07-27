@@ -44,7 +44,7 @@ def run(actions, key=None, agent="agent-1"):
 
 
 def _resign(receipt: Receipt, key: Ed25519PrivateKey) -> Receipt:
-    """Recompute the chain over the (possibly forged) entries and re-sign with `key` — exactly what a
+    """Recompute the chain over the (possibly forged) entries and re-sign with `key` - exactly what a
     malicious operator who holds the agent key would do to try to hide a violation."""
     head = GENESIS
     for i, e in enumerate(receipt.entries):

@@ -18,7 +18,7 @@ A `Group` must provide (duck-typed):
 Each proof clause i proves "I know x s.t. Y_i = h^x", where Y_i = C * g^{-ms[i]}. For the true index
 the witness is the Pedersen randomness r; every other clause is simulated (CDS OR-composition). A
 false claim cannot satisfy sum(e_i) == Fiat-Shamir challenge, and the transcript is simulatable
-without the witness -- soundness and honest-verifier zero-knowledge, in the random-oracle model.
+without the witness, soundness and honest-verifier zero-knowledge, in the random-oracle model.
 """
 from __future__ import annotations
 

@@ -1,14 +1,14 @@
-"""secp256k1 in pure Python -- a 256-bit prime-order group for the ZK OR-proof.
+"""secp256k1 in pure Python: a 256-bit prime-order group for the ZK OR-proof.
 
 Rationale (ZK_ROADMAP milestone 4): the MODP group (zk.py) uses 2048-bit integers, so its group
 elements serialize to ~600 decimal digits and every operation is a 2048-bit modexp. secp256k1 elements
 compress to 33 bytes and its scalars are 256-bit, so proofs are far smaller. The curve has cofactor 1
-(prime order n), so any on-curve point is a valid group element -- no subgroup checks needed.
+(prime order n), so any on-curve point is a valid group element, no subgroup checks needed.
 
 This is affine arithmetic: correct and easy to audit, not speed-tuned (a production deployment would
 bind a native curve library; a Jacobian-coordinate rewrite is the pure-Python speed path). `self_check`
 validates the constants and the arithmetic against published test vectors, so a transcription error in
-any constant fails loudly -- the same discipline as zk._group_ok.
+any constant fails loudly, the same discipline as zk._group_ok.
 """
 from __future__ import annotations
 

@@ -2,12 +2,12 @@
 
 Same construction and guarantees as zk.py, but on a 256-bit curve instead of a 2048-bit MODP group,
 so proofs are far smaller. It reuses the *entire* proof core (zk_core) and the *entire* policy layer
-(encode / allowed_set / action_verdict / supports from zk.py) -- only the group differs. That reuse is
+(encode / allowed_set / action_verdict / supports from zk.py), only the group differs. That reuse is
 the point of the milestone: swapping the group is a drop-in, and the delicate crypto is not duplicated.
 
 Elements here are curve points, so a commitment serializes via `ec.compress` (33-byte hex) rather than
 as a decimal integer. This is standalone groundwork: control_plane still defaults to the MODP group
-(zk.py). Prototype crypto -- external review required before it is relied on (ZK_ROADMAP milestone 3).
+(zk.py). Prototype crypto, external review required before it is relied on (ZK_ROADMAP milestone 3).
 """
 from __future__ import annotations
 

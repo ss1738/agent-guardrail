@@ -1,8 +1,8 @@
-"""demo_receipt.py -- the Agent Control Plane in one run: a gated agent session emits a signed receipt
+"""demo_receipt.py: the Agent Control Plane in one run: a gated agent session emits a signed receipt
 that an INDEPENDENT party verifies, and a forged receipt is caught.
 
 This is the artifact a relying party (an auditor, a bank, an insurer) pays to trust: they never see the
-agent run, they never trust the operator, they hold only the receipt + the public policy -- and they can
+agent run, they never trust the operator, they hold only the receipt + the public policy, and they can
 still prove the agent stayed within policy, and catch any forged "it was allowed".
 
     python3 demo_receipt.py
@@ -92,7 +92,7 @@ def main():
 
     line("=")
     print("The forgery is caught by anyone, because the verifier RE-RUNS the committed policy.")
-    print("An honest receipt and a lie are cryptographically distinguishable -- that is the product.\n")
+    print("An honest receipt and a lie are cryptographically distinguishable, that is the product.\n")
 
 
 if __name__ == "__main__":

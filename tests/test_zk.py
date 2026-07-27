@@ -1,9 +1,9 @@
 """Tests for the zero-knowledge git-branch receipt (ZK_ROADMAP milestone 1).
 
 Three properties a ZK proof must have, each tested adversarially:
-  correctness  -- an honest proof for the true verdict verifies
-  soundness    -- a false claim (commit to X, prove membership of a set X is not in) cannot verify
-  zero-knowledge -- an accepting transcript is simulatable WITHOUT the witness (reveals nothing)
+  correctness: an honest proof for the true verdict verifies
+  soundness: a false claim (commit to X, prove membership of a set it is not in) cannot verify
+  zero-knowledge: an accepting transcript is simulatable WITHOUT the witness (reveals nothing)
 plus the group self-check, verdict binding, commitment binding, tamper-evidence, and serialization.
 """
 import os
@@ -122,8 +122,8 @@ def test_tampered_response_is_rejected():
 # --- zero-knowledge: transcripts are simulatable without the witness -------
 def test_honest_verifier_zero_knowledge_simulatable():
     """Given only C and a target challenge, produce an accepting transcript with no witness.
-    Each clause equation holds and the challenges sum to the target -- identical distribution to
-    a real transcript -- demonstrating the proof leaks nothing about the opening."""
+    Each clause equation holds and the challenges sum to the target, identical distribution to
+    a real transcript, demonstrating the proof leaks nothing about the opening."""
     act = Action("git", op="push", branch="main", force=True)
     C, _ = zk.commit(zk.action_verdict(act)[1])
     verdict = "BLOCK"

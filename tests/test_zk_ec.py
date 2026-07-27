@@ -1,5 +1,5 @@
 """The git-branch ZK proof over secp256k1 (ZK_ROADMAP milestone 4). Mirrors the property tests of
-test_zk.py -- correctness, soundness, zero-knowledge, serialization -- to confirm the SAME guarantees
+test_zk.py, correctness, soundness, zero-knowledge, serialization, to confirm the SAME guarantees
 hold when only the group is swapped, plus the curve self-check and the measured size win."""
 import json
 import os
