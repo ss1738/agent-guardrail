@@ -155,6 +155,29 @@ Tools exposed to the agent via MCP: run_shell, write_file, git, audit_log
 blocked: 5   allowed: 4    .git intact, no secret, CI intact, fix applied, audit chain verifies
 ```
 
+## Use it in any function-calling agent (no MCP)
+
+Most agents are not MCP -- they run an OpenAI / Anthropic tool-calling loop. The same gate drops into
+that loop with no SDK dependency, because a tool call is just a `(name, arguments)` pair. Register the
+tools, then route every call through the `ToolGate`:
+
+```python
+from agent_guardrail.tool_gate import ToolGate, openai_tools   # or anthropic_tools()
+from agent_guardrail.control_plane import ControlPlane, Policy
+
+gate = ToolGate("/path/to/repo", control_plane=ControlPlane("my-agent", Policy("prod")))
+# ... register openai_tools() with the model ...
+for call in response.tool_calls:                       # your normal loop
+    result = gate.handle(call.function.name, json.loads(call.function.arguments))
+    # ... feed result back to the model as the tool message ...
+receipt = gate.receipt()                               # signed, independently verifiable
+```
+
+Every call is gated before it runs; unknown tools and malformed arguments are refused fail-closed (a
+hijacked model cannot crash the loop or slip past the gate). `integrations/demo_function_calling.py`
+runs the whole loop end-to-end against a real repo. This holds only if the `ToolGate` is the agent's
+*only* route to shell, git, and files (the same out-of-process assumption as the MCP path).
+
 ## Run it
 
 ```bash
@@ -165,6 +188,7 @@ python3 tests/test_control_plane.py        # 18 tests (verifiable receipts + 0/5
 python3 demo_compare.py                    # with and without the gate, on a real repo
 python3 demo_receipt.py                    # a verifiable receipt: issued, verified, and a forgery caught
 python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
+python3 integrations/demo_function_calling.py   # the gate in a plain OpenAI/Anthropic tool-calling loop
 python3 realworld_test.py                  # the 2,836-command friction check (needs gh)
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real Claude agent meets a planted injection: it declines, and the gate stands behind it
 ```
