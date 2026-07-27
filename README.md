@@ -187,6 +187,9 @@ pip install -e .                           # installs the package + the `agent-g
 # (or, to just run the scripts below without the CLI: pip install z3-solver cryptography "mcp")
 python3 tests/test_guardrail.py            # 11 tests (the gate)
 python3 tests/test_control_plane.py        # 34 tests (verifiable receipts + 0/500 forgeries caught)
+python3 tests/test_zk.py                    # 12 tests (zero-knowledge receipts)
+python3 tests/test_zk_ec.py                 # 10 tests (secp256k1 group)
+python3 tests/test_zk_receipt.py            # 14 tests (zk receipts, end-to-end)
 python3 tests/test_tool_gate.py            # 7 tests (the function-calling adapter)
 python3 demo_compare.py                    # with and without the gate, on a real repo
 python3 demo_receipt.py                    # a verifiable receipt: issued, verified, and a forgery caught
