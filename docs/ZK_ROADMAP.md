@@ -62,12 +62,25 @@ move to path 2 if/when a customer or underwriter needs it at scale.
 
 ## Milestones
 
-1. Sigma OR-proof for the git-branch policy: prover, verifier, soundness + ZK tests, a benchmark
-   (proof size, prove/verify time). Gate: proof verifies, a forged verdict cannot be proven, transcript
-   is simulatable.
+1. **DONE** — Sigma OR-proof for the git-branch policy (`agent_guardrail/zk.py`, `tests/test_zk.py`,
+   `demo_zk.py`). CDS OR-composition of Schnorr statements over Pedersen commitments in the order-Q QR
+   subgroup of the RFC 3526 2048-bit safe prime (the group is re-checked at test time via Miller-Rabin,
+   so a bad constant fails loudly). 12/12 tests: correctness, soundness (the strongest witness-free
+   cheat `simulate_all` is rejected; a verdict relabel and a wrong commitment are rejected), and
+   honest-verifier zero-knowledge (transcripts are simulatable without the witness). Gate met: honest
+   proofs verify, forged verdicts cannot be proven, transcripts are simulatable.
+   Benchmark (pure-Python, 24-clause BLOCK set): prove ~1.1 s, verify ~1.1 s, proof ~43 KB
+   (~1.8 KB/clause). The cost is 2048-bit modexp in CPython; a 256-bit elliptic-curve group (milestone 4)
+   would cut both time and size by ~1-2 orders of magnitude. Adequate for the prototype's purpose:
+   prove the UX and the interface.
 2. Wire into `Entry.zk_proof` + `verify_receipt`; a private-and-sound demo alongside `demo_receipt.py`.
+   Design note: the receipt's chain commitment is a SHA-256 hash-commit; the ZK proof is over a Pedersen
+   commit to the action's policy-relevant projection. Milestone 2 must bind the two (e.g. carry the
+   Pedersen `C` in the entry and prove consistency, or move the chain to the Pedersen commit) so a ZK
+   entry cannot swap in a different action than the one chained.
 3. External review of the crypto before it is presented as a guarantee.
-4. (Later, demand-driven) SNARK path via `proof-of-inference`, widening beyond the git-branch policy.
+4. (Later, demand-driven) SNARK path via `proof-of-inference`, widening beyond the git-branch policy;
+   also the natural place to switch to an elliptic-curve group for size/speed.
 
 ## Honest limits
 
