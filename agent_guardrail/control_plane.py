@@ -30,6 +30,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
     Ed25519PublicKey,
 )
 
+from . import zk as _zk
 from .guardrail import Action, Guardrail
 
 GENESIS = hashlib.sha256(b"agent-control-plane/genesis").hexdigest()
@@ -69,10 +70,13 @@ class Entry:
     verdict: str     # ALLOW | BLOCK | ESCALATE (as recorded by the gate)
     reason: str
     executed: bool    # did the operator actually run it (BLOCK must never be executed)
-    commit: str      # sha256(canonical(action) || salt) -- the chain is over this, so it survives redaction
+    commit: str      # sha256(canonical(action) || salt), OR (zk git entries) the decimal Pedersen C.
+                     # The chain is over this string either way, so it survives redaction.
     head: str        # public hash-chain head after this entry
     action: dict | None = None   # the raw action, or None if redacted for privacy
-    salt: str = ""               # hex salt for the commitment, or "" if redacted
+    salt: str = ""               # hex salt (sha) or decimal Pedersen r (zk), or "" if redacted
+    zk: dict | None = None       # serialized ZK proof (git-branch entries in zk-mode); None otherwise.
+                                 # Zero-knowledge, so it leaks nothing even in a full receipt.
 
 
 @dataclass
@@ -135,12 +139,17 @@ def _signing_payload(agent_id: str, policy_root: str, final_head: str, n: int) -
 # ControlPlane: gate a per-agent action stream, then export a signed receipt.
 # ---------------------------------------------------------------------------
 class ControlPlane:
-    def __init__(self, agent_id: str, policy: Policy, signing_key: Ed25519PrivateKey | None = None):
+    def __init__(self, agent_id: str, policy: Policy, signing_key: Ed25519PrivateKey | None = None,
+                 zk: bool = False):
         self.agent_id = agent_id
         self.policy = policy
         self._key = signing_key or Ed25519PrivateKey.generate()
         self._entries: list[Entry] = []
         self._head = GENESIS
+        # zk-mode: git-branch actions are committed with a Pedersen commitment and carry an eager
+        # zero-knowledge proof, so they can be redacted yet remain provably in-policy. Other action
+        # kinds keep the sha-256 commitment (ZK over regex/shell is out of scope; see ZK_ROADMAP).
+        self._zk = zk
 
     @property
     def public_key_hex(self) -> str:
@@ -155,10 +164,27 @@ class ControlPlane:
         its own gate, so the receipt records the REAL outcome (whether the action actually ran, e.g.
         an ALLOW that a sandbox backstop still refused is recorded as not executed)."""
         ad = asdict(action)
+        if self._zk and action.kind == "git":
+            self._record_zk(action, ad, verdict, executed)
+            return
         salt = secrets.token_hex(16)
         commit = _commit(ad, salt)
         self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
         self._entries.append(Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt))
+
+    def _record_zk(self, action: Action, ad: dict, verdict: str, executed: bool) -> None:
+        """Record a git-branch action with a Pedersen commitment + an eager ZK proof. The reason is
+        generic (verdict only) so a redacted entry leaks nothing via the reason string; the ZK proof
+        is over the SAME commitment that goes into the chain, so a verifier cannot swap in a different
+        action than the one chained."""
+        m = _zk.encode(action.op, action.branch, int(action.force), int(action.hard))
+        C, r = _zk.commit(m)
+        proof = _zk.prove(action, r)
+        commit, salt, reason = str(C), str(r), f"git-branch policy: {verdict}"
+        self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
+        self._entries.append(
+            Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt, zk=proof.to_dict())
+        )
 
     def gate(self, action: Action) -> str:
         """Classify + record one action. Returns the verdict. A BLOCK is recorded as NOT executed (the
@@ -230,14 +256,45 @@ def verify_receipt(
     except (InvalidSignature, ValueError):
         return VerifyResult(False, "invalid signature over the chain head")
 
-    # (3) soundness over every DISCLOSED action: its commitment must match, and re-running the
-    #     committed policy must reproduce the recorded verdict. A forged ALLOW is caught here even
-    #     when re-chained and re-signed. Redacted-and-undisclosed entries cannot be soundness-checked.
-    disclosed = 0
+    # (3) soundness. Two ways an entry can be proven sound:
+    #   - zk proof: the ZK proof is over the SAME Pedersen commitment that is in the chain, so it
+    #     proves the *chained* action is one the policy classifies as the recorded verdict -- WITHOUT
+    #     disclosing it. A relabelled verdict cannot produce an accepting proof over that commitment.
+    #   - disclosure: re-run the committed policy on the revealed action and reproduce its verdict.
+    # A forged ALLOW is caught by either, even when re-chained and re-signed. Redacted entries with
+    # neither a proof nor a disclosure get integrity + authenticity only.
+    disclosed = zk_sound = 0
     for i, e in enumerate(receipt.entries):
         act, salt = e.action, e.salt
         if act is None and str(i) in witness:
             act, salt = witness[str(i)]["action"], witness[str(i)]["salt"]
+
+        if e.zk is not None:
+            proof = _zk.ZKProof.from_dict(e.zk)
+            if proof.verdict != e.verdict:
+                return VerifyResult(False, f"entry {i}: zk proof verdict does not match the recorded verdict")
+            try:
+                C = int(e.commit)
+            except ValueError:
+                return VerifyResult(False, f"entry {i}: zk entry has a non-numeric commitment")
+            if not _zk.verify(C, proof):
+                return VerifyResult(False, f"entry {i}: invalid zk proof (action not provably {e.verdict})")
+            if act is not None:  # disclosed: bind the revealed action to the SAME commitment
+                if not salt:
+                    return VerifyResult(False, f"entry {i}: disclosed zk action is missing its randomness")
+                m = _zk.encode(act.get("op", ""), act.get("branch", ""),
+                               int(act.get("force", 0)), int(act.get("hard", 0)))
+                if _zk.commit(m, int(salt))[0] != C:
+                    return VerifyResult(False, f"entry {i}: disclosed action does not match its zk commitment")
+                try:
+                    v, _ = policy.classify(Action(**act))
+                except TypeError:
+                    return VerifyResult(False, f"entry {i}: malformed action")
+                if v != e.verdict:
+                    return VerifyResult(False, f"unsound verdict at entry {i}: policy says {v}, receipt claims {e.verdict}")
+            zk_sound += 1
+            continue
+
         if act is None:
             continue  # redacted with no witness: integrity + authenticity only for this entry
         if _commit(act, salt) != e.commit:
@@ -256,6 +313,15 @@ def verify_receipt(
             return VerifyResult(False, f"entry {i}: a BLOCKed action was executed")
 
     n = len(receipt.entries)
-    cover = "untampered and sound" if disclosed == n else (
-        f"untampered; {disclosed}/{n} actions disclosed and sound, {n - disclosed} redacted")
+    sound = disclosed + zk_sound
+    if sound == n:
+        cover = "untampered and sound" if not zk_sound else f"untampered and sound ({zk_sound} via zk proof)"
+    else:
+        got = []
+        if disclosed:
+            got.append(f"{disclosed} disclosed")
+        if zk_sound:
+            got.append(f"{zk_sound} zk-proven")
+        lead = " and ".join(got) + " and sound, " if got else ""
+        cover = f"untampered; {lead}{n - sound} redacted"
     return VerifyResult(True, f"verified: {n} actions, policy {receipt.policy_id}, {cover}")

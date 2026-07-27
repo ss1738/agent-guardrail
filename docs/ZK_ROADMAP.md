@@ -73,11 +73,17 @@ move to path 2 if/when a customer or underwriter needs it at scale.
    (~1.8 KB/clause). The cost is 2048-bit modexp in CPython; a 256-bit elliptic-curve group (milestone 4)
    would cut both time and size by ~1-2 orders of magnitude. Adequate for the prototype's purpose:
    prove the UX and the interface.
-2. Wire into `Entry.zk_proof` + `verify_receipt`; a private-and-sound demo alongside `demo_receipt.py`.
-   Design note: the receipt's chain commitment is a SHA-256 hash-commit; the ZK proof is over a Pedersen
-   commit to the action's policy-relevant projection. Milestone 2 must bind the two (e.g. carry the
-   Pedersen `C` in the entry and prove consistency, or move the chain to the Pedersen commit) so a ZK
-   entry cannot swap in a different action than the one chained.
+2. **DONE** — Wired into `Entry.zk` + `verify_receipt` (`control_plane.py`, `tests/test_zk_receipt.py`,
+   `demo_zk_receipt.py`). Resolution of the binding problem: in zk-mode (`ControlPlane(..., zk=True)`)
+   a git-branch entry's chain commitment IS the decimal Pedersen `C`, and the eager ZK proof is over
+   that same `C` -- so the proof speaks about the exact action that was chained; there is no second
+   commitment to reconcile. The proof is zero-knowledge, so it is carried even in a full receipt and
+   simply survives redaction (which strips only the action + randomness). The entry's reason is generic
+   (`git-branch policy: <verdict>`) so redaction leaks nothing via the reason. `verify_receipt` verifies
+   the proof over `C`, and for a *disclosed* zk entry additionally re-derives `C` from the revealed
+   action to bind it. 8/8 tests incl. the load-bearing one: a chained BLOCK cannot be relabelled ALLOW
+   even by re-chaining + re-signing with the operator's own key, because no ALLOW proof exists over a
+   BLOCK commitment. Non-git actions keep the sha-256 commitment; default mode (`zk=False`) is unchanged.
 3. External review of the crypto before it is presented as a guarantee.
 4. (Later, demand-driven) SNARK path via `proof-of-inference`, widening beyond the git-branch policy;
    also the natural place to switch to an elliptic-curve group for size/speed.
