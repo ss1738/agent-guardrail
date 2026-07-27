@@ -253,10 +253,18 @@ def simulate_all(C: int, verdict: str) -> ZKProof:
 # ---------------------------------------------------------------------------
 # Helpers bridging to the real Action / policy.
 # ---------------------------------------------------------------------------
+def supports(action: Action) -> bool:
+    """Whether this action is inside the ZK-modeled git-branch domain. Only the history-relevant ops
+    (push/reset/rebase/commit/branch) are covered; any other git op (add, status, fetch, ...) and every
+    non-git action falls back to the sha-256 commitment. Callers use this to decide the commit scheme."""
+    return action.kind == "git" and action.op in _OPS
+
+
 def action_verdict(action: Action) -> tuple[str, int]:
     """(verdict, encoding) for a git Action under the real policy."""
-    if action.kind != "git":
-        raise ValueError("zk covers git-branch actions only (see ZK_ROADMAP)")
+    if not supports(action):
+        raise ValueError(f"action is outside the zk-modeled git-branch domain (op={action.op!r}); "
+                         "see ZK_ROADMAP")
     v = _verdict(action.op, action.branch, int(action.force), int(action.hard))
     return v, encode(action.op, action.branch, int(action.force), int(action.hard))
 

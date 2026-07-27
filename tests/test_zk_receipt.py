@@ -130,6 +130,21 @@ def test_disclosed_zk_action_binding_enforced():
     assert not v.ok and "does not match its zk commitment" in v.reason, v.reason
 
 
+def test_unmodeled_git_op_falls_back_to_sha_not_dropped():
+    # in zk-mode, a git op outside the modeled set (add/status/fetch...) must still be RECORDED,
+    # via the sha-256 commitment, never dropped or crashing the session
+    cp = ControlPlane("a/b", POLICY, zk=True)
+    cp.gate(Action("git", op="add", branch=""))                     # ALLOW, not zk-modeled -> sha
+    cp.gate(Action("git", op="push", branch="main", force=True))    # BLOCK, zk-modeled -> zk
+    cp.gate(Action("git", op="status", branch=""))                  # ALLOW, not zk-modeled -> sha
+    r = cp.receipt()
+    assert len(r.entries) == 3                                      # nothing dropped
+    assert r.entries[0].zk is None and len(r.entries[0].commit) == 64   # add -> sha
+    assert r.entries[1].zk is not None                                  # push -> zk
+    assert r.entries[2].zk is None and len(r.entries[2].commit) == 64   # status -> sha
+    assert verify_receipt(_roundtrip(r), POLICY).ok
+
+
 def test_default_mode_unchanged_no_zk():
     # zk=False (default): git entries use sha commitments, no zk field -> existing behaviour intact
     cp = ControlPlane("a/b", POLICY)  # no zk

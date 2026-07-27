@@ -38,9 +38,12 @@ def _signing_key():
 
 
 AGENT_ID = os.environ.get("GUARDRAIL_AGENT_ID", "agent")
+# GUARDRAIL_ZK=1 turns on zero-knowledge receipts: git-branch actions carry a ZK proof, so the
+# session receipt can be redacted yet stay provably in-policy (see docs/ZK_ROADMAP.md, experimental).
+ZK = os.environ.get("GUARDRAIL_ZK", "").lower() in ("1", "true", "yes")
 GUARD = Guardrail()
 POLICY = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"))
-CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key())
+CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key(), zk=ZK)
 EXEC = Executor(WORKSPACE, GUARD, control_plane=CONTROL)
 mcp = FastMCP("agent-guardrail")
 
@@ -75,14 +78,22 @@ def audit_log() -> str:
 
 
 @mcp.tool()
-def session_receipt() -> str:
+def session_receipt(redact: bool = False) -> str:
     """Export a signed, independently-verifiable RECEIPT for this session: the agent id, the committed
     policy, every gated action with its verdict, and an Ed25519 signature over the tamper-evident chain
     head. A third party (an auditor, a bank, an insurer) can verify it with the PUBLIC KEY ALONE via
     agent_guardrail.control_plane.verify_receipt -- proving the agent stayed within policy, without
-    trusting this server or its operator, and catching any forged ALLOW."""
+    trusting this server or its operator, and catching any forged ALLOW.
+
+    redact=True strips every raw action (commands, file contents, branches) before returning. In
+    zk-mode (GUARDRAIL_ZK=1) git-branch actions stay provably in-policy via their zero-knowledge proof
+    even when redacted; other actions keep integrity + authenticity only."""
     r = EXEC.receipt()
-    return r.to_json() if r is not None else json.dumps({"error": "no control plane attached"})
+    if r is None:
+        return json.dumps({"error": "no control plane attached"})
+    if redact:
+        r, _ = r.redact(reveal=())
+    return r.to_json()
 
 
 if __name__ == "__main__":

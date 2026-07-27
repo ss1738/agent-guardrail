@@ -164,7 +164,7 @@ class ControlPlane:
         its own gate, so the receipt records the REAL outcome (whether the action actually ran, e.g.
         an ALLOW that a sandbox backstop still refused is recorded as not executed)."""
         ad = asdict(action)
-        if self._zk and action.kind == "git":
+        if self._zk and _zk.supports(action):
             self._record_zk(action, ad, verdict, executed)
             return
         salt = secrets.token_hex(16)
