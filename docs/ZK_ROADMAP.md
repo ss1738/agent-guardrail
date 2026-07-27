@@ -85,8 +85,20 @@ move to path 2 if/when a customer or underwriter needs it at scale.
    even by re-chaining + re-signing with the operator's own key, because no ALLOW proof exists over a
    BLOCK commitment. Non-git actions keep the sha-256 commitment; default mode (`zk=False`) is unchanged.
 3. External review of the crypto before it is presented as a guarantee.
-4. (Later, demand-driven) SNARK path via `proof-of-inference`, widening beyond the git-branch policy;
-   also the natural place to switch to an elliptic-curve group for size/speed.
+4. **Group is now pluggable; secp256k1 done (`ec.py`, `zk_ec.py`, `tests/test_zk_ec.py`).** The OR-proof
+   core was extracted group-agnostic (`zk_core.py`); the MODP scheme (`zk.py`) and an elliptic-curve
+   scheme (`zk_ec.py`, secp256k1) are both thin group definitions over it, sharing the entire proof
+   core and policy layer. `ec.py` is pure-Python secp256k1 (affine reference + Jacobian fast path,
+   cross-validated against each other and against published KAT vectors in `self_check`, so a bad
+   constant or arithmetic bug fails loudly). Measured, same 24-clause BLOCK proof: **EC ~10x faster
+   prove/verify (~110 ms vs ~1.1 s) and ~8x smaller (~5.6 KB vs ~44 KB)**. 10/10 EC tests mirror the
+   MODP property tests (correctness, soundness, ZK, serialization). Note: the affine path alone is
+   *slower* than MODP in Python (per-step inverse); the Jacobian path is what delivers the speed. EC is
+   standalone groundwork -- `control_plane` still defaults to MODP; switching it is a one-line group
+   swap once the crypto is externally reviewed (milestone 3).
+
+   Still later / demand-driven: a SNARK path via `proof-of-inference` to widen beyond the git-branch
+   policy (regex/shell rules), and binding a native curve library for production-grade speed.
 
 ## Honest limits
 
