@@ -32,7 +32,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 
 from . import zk as _zk
 from . import zk_ec as _zk_ec
-from .guardrail import Action, Guardrail
+from .guardrail import DEFAULT_SPEC, Action, Guardrail, PolicySpec
 
 GENESIS = hashlib.sha256(b"agent-control-plane/genesis").hexdigest()
 
@@ -47,16 +47,17 @@ _SCHEMES = {"modp": (_zk, _zk.MODP), "ec": (_zk_ec, _zk_ec.EC)}
 # independent verifier can re-run it over a trace.
 # ---------------------------------------------------------------------------
 class Policy:
-    """A named policy over agent actions. `root()` is a commitment to *which* policy this is; two
-    parties who both hold the policy definition compute the same root. v0 wraps the built-in
-    agent-guardrail ruleset (bump `ruleset_version` when the rules change)."""
+    """A named, versioned policy over agent actions, defined by a PolicySpec. `root()` commits to
+    *which* policy this is: the id, the version, and the CONTENT HASH of the spec. Two parties who hold
+    the same spec compute the same root, and a receipt issued under a different ruleset (different
+    protected branches, different extra patterns) is detectable, because the content hash changes.
+    Defaults to the built-in threat-model spec."""
 
-    ruleset_version = "agent-guardrail/threat-model/v1"
-
-    def __init__(self, policy_id: str, version: str = "1"):
+    def __init__(self, policy_id: str, version: str = "1", spec: PolicySpec | None = None):
         self.policy_id = policy_id
         self.version = version
-        self._g = Guardrail()  # stateless use: only `_classify`, which is pure
+        self.spec = spec or DEFAULT_SPEC
+        self._g = Guardrail(self.spec)  # stateless use: only `_classify`, which is pure
 
     def classify(self, a: Action) -> tuple[str, str]:
         """Return (verdict, reason). Pure: depends only on the action and the committed ruleset."""
@@ -64,7 +65,7 @@ class Policy:
 
     def root(self) -> str:
         return hashlib.sha256(
-            f"{self.policy_id}|{self.version}|{self.ruleset_version}".encode()
+            f"{self.policy_id}|{self.version}|{self.spec.content_hash()}".encode()
         ).hexdigest()
 
 
@@ -165,6 +166,12 @@ class ControlPlane:
             if self._group_name not in _SCHEMES:
                 raise ValueError(f"unknown zk group {self._group_name!r} (expected one of {list(_SCHEMES)})")
             self._scheme_mod, self._scheme_group = _SCHEMES[self._group_name]
+            # The zk domain (zk.py) is built from the default protected set, so zk-mode is only sound
+            # for a policy using that set. A custom protected set needs the zk domain regenerated.
+            if tuple(policy.spec.protected_branches) != tuple(DEFAULT_SPEC.protected_branches):
+                raise ValueError(
+                    "zk-mode currently supports only the default protected-branch set; a custom "
+                    "protected set needs the zk domain regenerated (see docs/ZK_ROADMAP.md)")
 
     @property
     def public_key_hex(self) -> str:

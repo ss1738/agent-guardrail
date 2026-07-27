@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("receipt", help="path to the receipt JSON, or '-' for stdin")
     p.add_argument("--policy-id", help="the policy id YOU expect (default: the receipt's own claim)")
     p.add_argument("--policy-version", help="the policy version YOU expect (default: the receipt's)")
+    p.add_argument("--policy-spec", help="path to a PolicySpec JSON YOU hold (default: the built-in spec)")
     p.add_argument("--pin-key", help="hex Ed25519 public key pinned to this agent's identity")
     p.add_argument("--registry", help="path to an agent-identity registry (agent_id -> pinned key) YOU control")
     p.add_argument("--witness", help="path to a disclosure witness (for a redacted receipt) to check soundness")
@@ -44,10 +45,20 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     # The verifier supplies the policy THEY trust; default to the receipt's own claim for convenience
-    # (the soundness re-run + root commitment are what actually bind it).
+    # (the soundness re-run + root commitment are what actually bind it). --policy-spec loads the exact
+    # ruleset the verifier holds; its content hash must match the receipt's policy root.
+    spec = None
+    if args.policy_spec:
+        from .guardrail import PolicySpec
+        try:
+            spec = PolicySpec.from_json(open(args.policy_spec).read())
+        except Exception as e:
+            print(f"error: could not read policy spec: {e}", file=sys.stderr)
+            return 2
     policy = Policy(
         args.policy_id or receipt.policy_id,
         args.policy_version or "1",
+        spec,
     )
 
     # Pin the agent's key: explicit --pin-key wins; else look it up in the registry (and reject an

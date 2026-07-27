@@ -11,8 +11,10 @@ For a receipt that verifies against a policy the relying party holds (and, with 
 public key), all of the following hold:
 
 1. **Policy identity.** The trace was gated under the exact policy the verifier holds: the receipt's
-   `policy_root` equals `Policy(id, version).root()`. A receipt issued under a different policy is
-   rejected.
+   `policy_root` equals `Policy(id, version, spec).root()`, where the root is
+   `sha256(id | version | spec.content_hash())`. The commitment binds the ruleset's *content* (the
+   protected branches and any extra secret/shell patterns), not just a version label, so a receipt
+   produced under different rules hashes to a different root and is rejected.
 2. **Integrity.** The recorded action trace is untampered. The public SHA-256 hash-chain is recomputed
    from genesis; any inserted, deleted, reordered, or altered entry breaks it. No key is needed for
    this check - anyone can recompute it.
@@ -56,7 +58,8 @@ trusts neither the operator nor the server.*
   (that would be circular), exactly like a CA's registration or SSH `known_hosts`.
 - **The verifier independently holds the policy.** The soundness re-run is only meaningful because the
   verifier reconstructs the policy themselves; taking the policy on the receipt's word makes check 1
-  vacuous. Ship the policy definition to relying parties, versioned.
+  vacuous. Ship the policy spec to relying parties, versioned; they pass it with
+  `agent-guardrail-verify --policy-spec spec.json`, and its content hash must match the receipt's root.
 
 ## Privacy: redaction and selective disclosure
 
