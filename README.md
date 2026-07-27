@@ -15,6 +15,10 @@ Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell,
 
 ## Beyond the gate: verifiable receipts (Agent Control Plane)
 
+<p align="center">
+  <img src="docs/receipt-demo.gif" alt="An agent's destructive commands are blocked, then a signed session receipt is produced and independently verified" width="720">
+</p>
+
 The gate stops bad actions. The Agent Control Plane adds the other half a relying party needs: a signed receipt that anyone can verify without trusting you or your server. Bind an agent identity to a named, committed policy, gate its tool calls, and export a receipt. The receipt holds the agent id, the policy commitment, every gated action with its verdict, and an Ed25519 signature over a tamper-evident hash chain. An auditor, a bank, or an insurer verifies it with the public key alone:
 
 ```bash
