@@ -28,6 +28,8 @@ jobs:
         run: python3 tests/test_policy_spec.py
       - name: policy-cli suite
         run: python3 tests/test_policy_cli.py
+      - name: audit-log suite
+        run: python3 tests/test_audit_log.py
       - name: cli smoke (packaging + console scripts)
         run: |
           agent-guardrail-verify --help

@@ -148,12 +148,17 @@ def _signing_payload(agent_id: str, policy_root: str, final_head: str, n: int) -
 # ---------------------------------------------------------------------------
 class ControlPlane:
     def __init__(self, agent_id: str, policy: Policy, signing_key: Ed25519PrivateKey | None = None,
-                 zk: bool | str = False):
+                 zk: bool | str = False, audit_log=None, on_block=None):
         self.agent_id = agent_id
         self.policy = policy
         self._key = signing_key or Ed25519PrivateKey.generate()
         self._entries: list[Entry] = []
         self._head = GENESIS
+        # audit_log: a durable sink (anything with .append(Entry)) written as each action is recorded,
+        # so a crashed agent still leaves a tamper-evident trail. on_block: a callback fired when an
+        # action is BLOCKED (for a webhook / Slack alert); its failures never break the gate.
+        self._audit = audit_log
+        self._on_block = on_block
         # zk-mode: git-branch actions are committed with a Pedersen commitment and carry an eager
         # zero-knowledge proof, so they can be redacted yet remain provably in-policy. Other action
         # kinds keep the sha-256 commitment (ZK over regex/shell is out of scope; see ZK_ROADMAP).
@@ -186,7 +191,23 @@ class ControlPlane:
         salt = secrets.token_hex(16)
         commit = _commit(ad, salt)
         self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
-        self._entries.append(Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt))
+        entry = Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt)
+        self._entries.append(entry)
+        self._after_record(entry, action)
+
+    def _after_record(self, entry: "Entry", action: Action) -> None:
+        """Durably persist the entry and fire the block alert. An audit-sink or alert failure must
+        never break the gate, so both are guarded."""
+        if self._audit is not None:
+            try:
+                self._audit.append(entry)
+            except Exception:
+                pass
+        if entry.verdict == "BLOCK" and self._on_block is not None:
+            try:
+                self._on_block(action, entry.reason)
+            except Exception:
+                pass
 
     def _record_zk(self, action: Action, ad: dict, verdict: str, executed: bool) -> None:
         """Record a git-branch action with a Pedersen commitment + an eager ZK proof. The reason is
@@ -199,10 +220,10 @@ class ControlPlane:
         proof = self._scheme_mod.prove(action, r, protected)
         commit, salt, reason = self._scheme_group.ser(C), str(r), f"git-branch policy: {verdict}"
         self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
-        self._entries.append(
-            Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt,
-                  zk=proof.to_dict(), zk_group=self._group_name)
-        )
+        entry = Entry(verdict, reason, executed, commit, self._head, action=ad, salt=salt,
+                      zk=proof.to_dict(), zk_group=self._group_name)
+        self._entries.append(entry)
+        self._after_record(entry, action)
 
     def gate(self, action: Action) -> str:
         """Classify + record one action. Returns the verdict. A BLOCK is recorded as NOT executed (the
