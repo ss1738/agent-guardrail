@@ -93,8 +93,9 @@ def main():
     escalated, blocked = [], []
     total_cmds, repos_ok = 0, 0
 
+    WF_PER_REPO = 3   # sample the first N workflow files per repo (disclosed in the result line)
     for repo in TRUSTED:
-        wfs = list_workflows(repo)[:3]
+        wfs = list_workflows(repo)[:WF_PER_REPO]
         if not wfs:
             print(f"  (skip {repo}: no workflows readable)")
             continue
@@ -113,7 +114,8 @@ def main():
         print(f"  ✓ {repo:24s} {rc:4d} real run-commands classified")
 
     print("\n" + "=" * 60)
-    print(f"REAL-WORLD RESULT: {total_cmds} legit commands from {repos_ok} trusted repos")
+    print(f"REAL-WORLD RESULT: {total_cmds} legit commands from {repos_ok} trusted repos "
+          f"(first {WF_PER_REPO} workflow files each; a sample, not exhaustive)")
     print("=" * 60)
     for k in ("ALLOW", "ESCALATE", "BLOCK"):
         pct = 100 * tally[k] / max(total_cmds, 1)

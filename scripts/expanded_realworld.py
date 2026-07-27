@@ -37,8 +37,9 @@ def main():
     total, repos_with_ci = 0, 0
     repos = top_repos()
     print(f"sampled {len(repos)} of the most-starred repos across {len(LANGS)} languages\n")
+    WF_PER_REPO = 3   # sample the first N workflow files per repo (disclosed in the result line)
     for repo in repos:
-        wfs = list_workflows(repo)[:3]
+        wfs = list_workflows(repo)[:WF_PER_REPO]
         if not wfs:
             continue
         repos_with_ci += 1
@@ -57,7 +58,8 @@ def main():
             print(f"  {repo:34s} {n:4d} commands")
 
     print("\n" + "=" * 64)
-    print(f"RESULT: {total} real CI commands from {repos_with_ci} repos")
+    print(f"RESULT: {total} real CI commands from {repos_with_ci} repos "
+          f"(first {WF_PER_REPO} workflow files each; a sample, not exhaustive)")
     print("=" * 64)
     for k in ("ALLOW", "ESCALATE", "BLOCK"):
         print(f"  {k:9s}: {tally[k]:5d}  ({100*tally[k]/max(total,1):4.1f}%)")

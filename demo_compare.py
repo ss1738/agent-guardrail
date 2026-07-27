@@ -103,8 +103,7 @@ def main():
     guard, execu = run_guarded(B)
     print("WITH guardrail:")
     report("GUARDED", B)
-    print(f"  destructive actions BLOCKED: {len(execu.blocked)} / "
-          f"{len([1 for n,_ in COMPROMISED_SEQUENCE if True])} total; "
+    print(f"  destructive actions BLOCKED: {len(execu.blocked)};  "
           f"legit actions executed: {len(execu.executed)}")
     for b in execu.blocked:
         print(f"      ⛔ {b}")
