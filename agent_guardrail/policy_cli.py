@@ -16,6 +16,7 @@ import re
 import sys
 
 from .guardrail import DEFAULT_SPEC, PolicySpec
+from .presets import preset_names, preset_spec
 
 
 def _load(path: str) -> PolicySpec:
@@ -44,6 +45,8 @@ def main(argv: list[str] | None = None) -> int:
                     help="extra regex flagged as a secret (repeatable)")
     pi.add_argument("--shell-deny", action="append", default=[],
                     help="extra regex blocked outright in shell (repeatable)")
+    pi.add_argument("--preset", action="append", default=[], metavar="NAME",
+                    help=f"add an opt-in preset denylist (repeatable). available: {', '.join(preset_names())}")
     pi.add_argument("--out", help="path to write (default: stdout)")
 
     ps = sub.add_parser("show", help="inspect a spec.json")
@@ -61,6 +64,12 @@ def main(argv: list[str] | None = None) -> int:
         spec = PolicySpec(protected_branches=protected,
                           extra_secret_patterns=tuple(args.secret_pattern),
                           extra_shell_denylist=tuple(args.shell_deny))
+        if args.preset:
+            try:
+                spec = preset_spec(*args.preset, base=spec)
+            except ValueError as e:
+                print(f"error: {e}", file=sys.stderr)
+                return 2
         bad = _bad_patterns(spec)
         if bad:
             for pat, err in bad:

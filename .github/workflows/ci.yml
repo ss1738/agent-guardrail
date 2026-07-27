@@ -32,8 +32,11 @@ jobs:
         run: python3 tests/test_audit_log.py
       - name: verify-server suite
         run: python3 tests/test_verify_server.py
+      - name: presets suite
+        run: python3 tests/test_presets.py
       - name: cli smoke (packaging + console scripts)
         run: |
           agent-guardrail-verify --help
           agent-guardrail-policy init --protected main,release
+          agent-guardrail-policy init --preset devops --out /tmp/ci-devops-spec.json
           agent-guardrail-serve --help
