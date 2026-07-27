@@ -23,6 +23,8 @@ from mcp.server.fastmcp import FastMCP
 from agent_guardrail.guardrail import Guardrail
 from agent_guardrail.executor import Executor
 from agent_guardrail.control_plane import ControlPlane, Policy
+from agent_guardrail.audit_log import AuditLog
+from agent_guardrail.alerts import webhook_alert
 
 WORKSPACE = os.environ.get("GUARDRAIL_WORKSPACE", os.path.join(os.getcwd(), "workspace"))
 os.makedirs(WORKSPACE, exist_ok=True)
@@ -45,7 +47,11 @@ _ZK_ENV = os.environ.get("GUARDRAIL_ZK", "").lower()
 ZK = _ZK_ENV if _ZK_ENV in ("modp", "ec") else (_ZK_ENV in ("1", "true", "yes"))
 GUARD = Guardrail()
 POLICY = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"))
-CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key(), zk=ZK)
+# GUARDRAIL_AUDIT_LOG=/path/audit.jsonl streams every gated action to disk (survives a crash);
+# GUARDRAIL_ALERT_URL=https://hooks.slack.com/... fires a webhook alert on every block.
+_AUDIT = AuditLog(os.environ["GUARDRAIL_AUDIT_LOG"]) if os.environ.get("GUARDRAIL_AUDIT_LOG") else None
+_ALERT = webhook_alert(os.environ["GUARDRAIL_ALERT_URL"]) if os.environ.get("GUARDRAIL_ALERT_URL") else None
+CONTROL = ControlPlane(AGENT_ID, POLICY, signing_key=_signing_key(), zk=ZK, audit_log=_AUDIT, on_block=_ALERT)
 EXEC = Executor(WORKSPACE, GUARD, control_plane=CONTROL)
 mcp = FastMCP("agent-guardrail")
 

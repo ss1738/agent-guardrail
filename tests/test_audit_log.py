@@ -105,6 +105,34 @@ def test_audit_sink_failure_never_breaks_the_gate():
     assert len(cp._entries) == 1 and cp._entries[0].verdict == "BLOCK"
 
 
+def test_webhook_alert_posts_the_block():
+    import http.server
+    import json as _json
+    import threading
+    from agent_guardrail.alerts import webhook_alert
+    received = {}
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            n = int(self.headers.get("Content-Length", 0))
+            received["body"] = self.rfile.read(n).decode()
+            self.send_response(200); self.end_headers()
+        def log_message(self, *a): pass
+    srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+    port = srv.server_address[1]
+    th = threading.Thread(target=srv.handle_request, daemon=True); th.start()
+    webhook_alert(f"http://127.0.0.1:{port}")(
+        Action("git", op="push", branch="main", force=True), "force-push to protected branch 'main'")
+    th.join(timeout=3); srv.server_close()
+    d = _json.loads(received["body"])
+    assert d["verdict"] == "BLOCK" and "push main" in d["action"] and "force-push" in d["reason"]
+
+
+def test_webhook_alert_survives_a_dead_endpoint():
+    from agent_guardrail.alerts import webhook_alert
+    # nothing is listening; the alert must swallow the failure and not raise
+    webhook_alert("http://127.0.0.1:1", timeout=0.5)(Action("shell", cmd="rm -rf .git"), "repo delete")
+
+
 if __name__ == "__main__":
     fns = [f for n, f in sorted(globals().items()) if n.startswith("test_")]
     passed = 0
