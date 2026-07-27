@@ -166,12 +166,6 @@ class ControlPlane:
             if self._group_name not in _SCHEMES:
                 raise ValueError(f"unknown zk group {self._group_name!r} (expected one of {list(_SCHEMES)})")
             self._scheme_mod, self._scheme_group = _SCHEMES[self._group_name]
-            # The zk domain (zk.py) is built from the default protected set, so zk-mode is only sound
-            # for a policy using that set. A custom protected set needs the zk domain regenerated.
-            if tuple(policy.spec.protected_branches) != tuple(DEFAULT_SPEC.protected_branches):
-                raise ValueError(
-                    "zk-mode currently supports only the default protected-branch set; a custom "
-                    "protected set needs the zk domain regenerated (see docs/ZK_ROADMAP.md)")
 
     @property
     def public_key_hex(self) -> str:
@@ -199,9 +193,10 @@ class ControlPlane:
         generic (verdict only) so a redacted entry leaks nothing via the reason string; the ZK proof
         is over the SAME commitment (serialized by the chosen group) that goes into the chain, so a
         verifier cannot swap in a different action than the one chained."""
-        m = _zk.encode(action.op, action.branch, int(action.force), int(action.hard))
+        protected = tuple(self.policy.spec.protected_branches)
+        m = _zk.encode(action.op, action.branch, int(action.force), int(action.hard), protected)
         C, r = self._scheme_mod.commit(m)
-        proof = self._scheme_mod.prove(action, r)
+        proof = self._scheme_mod.prove(action, r, protected)
         commit, salt, reason = self._scheme_group.ser(C), str(r), f"git-branch policy: {verdict}"
         self._head = _chain_step(self._head, len(self._entries), commit, verdict, reason, executed)
         self._entries.append(
@@ -293,6 +288,7 @@ def verify_receipt(
             act, salt = witness[str(i)]["action"], witness[str(i)]["salt"]
 
         if e.zk is not None:
+            protected = tuple(policy.spec.protected_branches)   # the zk domain uses the policy's set
             name = e.zk_group or "modp"   # "" defaults to modp for receipts predating the group field
             if name not in _SCHEMES:
                 return VerifyResult(False, f"entry {i}: unknown zk group {name!r}")
@@ -304,13 +300,13 @@ def verify_receipt(
                 C = scheme_group.deser(e.commit)
             except (ValueError, TypeError):
                 return VerifyResult(False, f"entry {i}: malformed zk commitment for group {name!r}")
-            if not scheme_mod.verify(C, proof):
+            if not scheme_mod.verify(C, proof, protected):
                 return VerifyResult(False, f"entry {i}: invalid zk proof (action not provably {e.verdict})")
             if act is not None:  # disclosed: bind the revealed action to the SAME commitment
                 if not salt:
                     return VerifyResult(False, f"entry {i}: disclosed zk action is missing its randomness")
                 m = _zk.encode(act.get("op", ""), act.get("branch", ""),
-                               int(act.get("force", 0)), int(act.get("hard", 0)))
+                               int(act.get("force", 0)), int(act.get("hard", 0)), protected)
                 if scheme_group.ser(scheme_mod.commit(m, int(salt))[0]) != e.commit:
                     return VerifyResult(False, f"entry {i}: disclosed action does not match its zk commitment")
                 try:

@@ -137,43 +137,50 @@ def _group_ok() -> bool:
 # is exactly the policy's preimage of V. (Group-independent; shared by every backend.)
 # ---------------------------------------------------------------------------
 _OPS = ("push", "reset", "rebase", "commit", "branch")
-_OTHER = "«other»"                      # single representative non-protected branch
-_BRANCHES = tuple(PROTECTED) + (_OTHER,)
-_NONPROTECTED_CONCRETE = "feature"               # a real non-protected name for classify()
+_OTHER = "\x00nonprotected"             # representative non-protected branch (never a real branch name,
+#                                         so it is non-protected under ANY protected set)
 
 
-def _domain():
+def _branches(protected: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(protected) + (_OTHER,)
+
+
+def _domain(protected: tuple[str, ...] = PROTECTED):
     for op in _OPS:
-        for br in _BRANCHES:
+        for br in _branches(protected):
             for force in (0, 1):
                 for hard in (0, 1):
                     yield (op, br, force, hard)
 
 
-def encode(op: str, branch: str, force: int, hard: int) -> int:
-    """Deterministic small-integer encoding of a git-branch action's policy-relevant projection."""
-    br = _OTHER if branch not in PROTECTED else branch
-    m = (((_OPS.index(op) * len(_BRANCHES)) + _BRANCHES.index(br)) * 2 + int(bool(force))) * 2 + int(bool(hard))
+def encode(op: str, branch: str, force: int, hard: int, protected: tuple[str, ...] = PROTECTED) -> int:
+    """Deterministic small-integer encoding of a git-branch action's policy-relevant projection, over
+    the given protected-branch set (default: the built-in set)."""
+    protected = tuple(protected)
+    brs = _branches(protected)
+    br = _OTHER if branch not in protected else branch
+    m = (((_OPS.index(op) * len(brs)) + brs.index(br)) * 2 + int(bool(force))) * 2 + int(bool(hard))
     return m
 
 
-def _verdict(op: str, branch: str, force: int, hard: int) -> str:
-    """The REAL policy verdict for a git-branch action, via the shared Guardrail classifier."""
-    concrete = _NONPROTECTED_CONCRETE if branch == _OTHER else branch
-    from .guardrail import Guardrail
-    v, _ = Guardrail()._classify(
-        Action("git", op=op, branch=concrete, force=bool(force), hard=bool(hard))
+def _verdict(op: str, branch: str, force: int, hard: int, protected: tuple[str, ...] = PROTECTED) -> str:
+    """The REAL policy verdict for a git-branch action, via the shared Guardrail classifier under a
+    spec with this protected set. `branch` is either a protected name or the `_OTHER` sentinel; both
+    resolve correctly through the classifier's membership test."""
+    from .guardrail import Guardrail, PolicySpec
+    v, _ = Guardrail(PolicySpec(protected_branches=tuple(protected)))._classify(
+        Action("git", op=op, branch=branch, force=bool(force), hard=bool(hard))
     )
     return v
 
 
 @lru_cache(maxsize=None)
-def allowed_set(verdict: str) -> tuple[int, ...]:
-    """S_V: the sorted encodings of every git-branch action the policy classifies as `verdict`.
-    The verifier recomputes this from the policy itself, so the proof is meaningful only relative
-    to the real ruleset (exactly like the plaintext receipt's soundness re-run). Memoized: the
-    domain and policy are fixed at import, so this is a pure function of `verdict`."""
-    return tuple(sorted({encode(*a) for a in _domain() if _verdict(*a) == verdict}))
+def allowed_set(verdict: str, protected: tuple[str, ...] = PROTECTED) -> tuple[int, ...]:
+    """S_V: the sorted encodings of every git-branch action the policy classifies as `verdict`, under
+    the given protected set. The verifier recomputes this from the policy it holds, so the proof is
+    meaningful only relative to that ruleset. Memoized on (verdict, protected)."""
+    protected = tuple(protected)
+    return tuple(sorted({encode(*a, protected) for a in _domain(protected) if _verdict(*a, protected) == verdict}))
 
 
 # ---------------------------------------------------------------------------
@@ -197,36 +204,39 @@ def supports(action: Action) -> bool:
     return action.kind == "git" and action.op in _OPS
 
 
-def action_verdict(action: Action) -> tuple[str, int]:
-    """(verdict, encoding) for a git Action under the real policy."""
+def action_verdict(action: Action, protected: tuple[str, ...] = PROTECTED) -> tuple[str, int]:
+    """(verdict, encoding) for a git Action under the policy's protected set."""
     if not supports(action):
         raise ValueError(f"action is outside the zk-modeled git-branch domain (op={action.op!r}); "
                          "see ZK_ROADMAP")
-    v = _verdict(action.op, action.branch, int(action.force), int(action.hard))
-    return v, encode(action.op, action.branch, int(action.force), int(action.hard))
+    protected = tuple(protected)
+    v = _verdict(action.op, action.branch, int(action.force), int(action.hard), protected)
+    return v, encode(action.op, action.branch, int(action.force), int(action.hard), protected)
 
 
-def prove(action: Action, r: int) -> ZKProof:
+def prove(action: Action, r: int, protected: tuple[str, ...] = PROTECTED) -> ZKProof:
     """Prove that C = commit(encode(action), r) opens to an element of S_verdict, in zero knowledge."""
-    verdict, m = action_verdict(action)
-    proof, _ = zk_core.prove(MODP, allowed_set(verdict), m, r, verdict, _TAG)
+    protected = tuple(protected)
+    verdict, m = action_verdict(action, protected)
+    proof, _ = zk_core.prove(MODP, allowed_set(verdict, protected), m, r, verdict, _TAG)
     return proof
 
 
-def verify(C: int, proof: ZKProof) -> bool:
+def verify(C: int, proof: ZKProof, protected: tuple[str, ...] = PROTECTED) -> bool:
     """Check a ZK proof that C commits to an element of S_{proof.verdict}. Public data only."""
-    return zk_core.verify(MODP, allowed_set(proof.verdict), C, proof, _TAG)
+    return zk_core.verify(MODP, allowed_set(proof.verdict, tuple(protected)), C, proof, _TAG)
 
 
-def simulate_all(C: int, verdict: str) -> ZKProof:
+def simulate_all(C: int, verdict: str, protected: tuple[str, ...] = PROTECTED) -> ZKProof:
     """The strongest witness-free cheat (see zk_core.simulate_all). Exposed so soundness is
     demonstrable (demo_zk.py) and testable, not something only the crypto author can check."""
-    return zk_core.simulate_all(MODP, allowed_set(verdict), C, verdict, _TAG)
+    return zk_core.simulate_all(MODP, allowed_set(verdict, tuple(protected)), C, verdict, _TAG)
 
 
-def prove_action(action: Action) -> tuple[int, ZKProof, int]:
+def prove_action(action: Action, protected: tuple[str, ...] = PROTECTED) -> tuple[int, ZKProof, int]:
     """Convenience: commit to `action`, prove policy-compliance in ZK. Returns (C, proof, r)."""
-    verdict, m = action_verdict(action)
+    protected = tuple(protected)
+    verdict, m = action_verdict(action, protected)
     r = secrets.randbelow(Q - 1) + 1
-    proof, C = zk_core.prove(MODP, allowed_set(verdict), m, r, verdict, _TAG)
+    proof, C = zk_core.prove(MODP, allowed_set(verdict, protected), m, r, verdict, _TAG)
     return C, proof, r

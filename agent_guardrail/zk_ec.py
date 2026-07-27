@@ -12,7 +12,7 @@ as a decimal integer. This is standalone groundwork: control_plane still default
 from __future__ import annotations
 
 from . import ec, zk_core
-from .guardrail import Action
+from .guardrail import PROTECTED, Action
 from .zk import action_verdict, allowed_set  # policy layer, shared with the MODP scheme
 from .zk_core import ZKProof  # re-exported
 
@@ -30,23 +30,25 @@ def commit(m: int, r: int | None = None):
     return zk_core.pedersen(EC, m, r), r
 
 
-def prove(action: Action, r: int) -> ZKProof:
-    verdict, m = action_verdict(action)
-    proof, _ = zk_core.prove(EC, allowed_set(verdict), m, r, verdict, _TAG)
+def prove(action: Action, r: int, protected: tuple[str, ...] = PROTECTED) -> ZKProof:
+    protected = tuple(protected)
+    verdict, m = action_verdict(action, protected)
+    proof, _ = zk_core.prove(EC, allowed_set(verdict, protected), m, r, verdict, _TAG)
     return proof
 
 
-def verify(C, proof: ZKProof) -> bool:
-    return zk_core.verify(EC, allowed_set(proof.verdict), C, proof, _TAG)
+def verify(C, proof: ZKProof, protected: tuple[str, ...] = PROTECTED) -> bool:
+    return zk_core.verify(EC, allowed_set(proof.verdict, tuple(protected)), C, proof, _TAG)
 
 
-def simulate_all(C, verdict: str) -> ZKProof:
-    return zk_core.simulate_all(EC, allowed_set(verdict), C, verdict, _TAG)
+def simulate_all(C, verdict: str, protected: tuple[str, ...] = PROTECTED) -> ZKProof:
+    return zk_core.simulate_all(EC, allowed_set(verdict, tuple(protected)), C, verdict, _TAG)
 
 
-def prove_action(action: Action):
+def prove_action(action: Action, protected: tuple[str, ...] = PROTECTED):
     """Commit + prove. Returns (C, proof, r)."""
-    verdict, m = action_verdict(action)
+    protected = tuple(protected)
+    verdict, m = action_verdict(action, protected)
     r = EC.rand_scalar()
-    proof, C = zk_core.prove(EC, allowed_set(verdict), m, r, verdict, _TAG)
+    proof, C = zk_core.prove(EC, allowed_set(verdict, protected), m, r, verdict, _TAG)
     return C, proof, r

@@ -95,16 +95,31 @@ def test_z3_proves_custom_protected_set():
     assert verdict == "HOLE" and cex["op"] == "rebase"
 
 
-# --- zk-mode guards the default protected set ------------------------------
-def test_zk_mode_rejects_custom_protected_set():
-    spec = PolicySpec(protected_branches=("trunk",))
-    try:
-        ControlPlane("a", Policy("p", "1", spec), zk=True)
-        assert False, "zk-mode with a custom protected set should raise"
-    except ValueError as e:
-        assert "protected-branch" in str(e)
-    # default protected set + zk is fine
-    ControlPlane("a", Policy("p", "1"), zk=True)
+# --- zk receipts work over a CUSTOM protected set --------------------------
+def test_zk_mode_supports_custom_protected_set():
+    for group in (True, "ec"):
+        spec = PolicySpec(protected_branches=("trunk",))
+        cp = ControlPlane("a", Policy("p", "1", spec), zk=group)
+        cp.gate(Action("git", op="push", branch="trunk", force=True))   # BLOCK here, zk-proven
+        cp.gate(Action("git", op="push", branch="main", force=True))    # ALLOW (main not protected)
+        r = cp.receipt()
+        assert all(e.zk is not None for e in r.entries), group
+        # verifies under the same spec, even fully redacted (soundness via the zk proofs)
+        red, _ = r.redact(reveal=())
+        v = verify_receipt(Receipt.from_json(red.to_json()), Policy("p", "1", spec))
+        assert v.ok and "zk proof" in v.reason, (group, v.reason)
+
+
+def test_zk_proof_bound_to_the_protected_set():
+    # The encoding abstracts a branch to (protected-index, force, hard), so the proof proves the
+    # protected-ness STRUCTURE, and cross-set confusion between same-shape sets is prevented at the
+    # receipt level by the policy root (test_receipt_is_rejected_under_a_different_spec). At the raw
+    # proof level, a set of a DIFFERENT SIZE has a different allowed-set length, so the proof is rejected.
+    from agent_guardrail import zk
+    act = Action("git", op="push", branch="trunk", force=True)
+    C, proof, r = zk.prove_action(act, protected=("trunk",))
+    assert zk.verify(C, proof, protected=("trunk",))                                  # correct set
+    assert zk.verify(C, proof, protected=("main", "master", "release")) is False      # different size -> rejected
 
 
 # --- the CLI verifier can hold the spec ------------------------------------

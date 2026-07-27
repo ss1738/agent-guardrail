@@ -97,6 +97,13 @@ move to path 2 if/when a customer or underwriter needs it at scale.
    standalone groundwork, `control_plane` still defaults to MODP; switching it is a one-line group
    swap once the crypto is externally reviewed (milestone 3).
 
+   The zk domain (the protected-branch set) parameterises on the policy's `PolicySpec`, so
+   zero-knowledge receipts work over a *custom* protected set, not only the built-in one: the prover
+   passes its set, and the verifier recomputes the allowed-set from the spec it holds (which the policy
+   root binds). The encoding abstracts a branch to (protected-index, force, hard), so a proof attests to
+   the protected-ness structure and verdict; the specific branch name is bound by the disclosed action
+   or is simply not needed for a redacted entry.
+
    Still later / demand-driven: a SNARK path via `proof-of-inference` to widen beyond the git-branch
    policy (regex/shell rules), and binding a native curve library for production-grade speed.
 
