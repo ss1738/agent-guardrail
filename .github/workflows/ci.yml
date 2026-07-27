@@ -26,5 +26,9 @@ jobs:
         run: python3 tests/test_tool_gate.py
       - name: policy-spec suite
         run: python3 tests/test_policy_spec.py
-      - name: cli smoke (packaging + console script)
-        run: agent-guardrail-verify --help
+      - name: policy-cli suite
+        run: python3 tests/test_policy_cli.py
+      - name: cli smoke (packaging + console scripts)
+        run: |
+          agent-guardrail-verify --help
+          agent-guardrail-policy init --protected main,release
