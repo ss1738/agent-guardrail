@@ -180,6 +180,13 @@ class ControlPlane:
             serialization.Encoding.Raw, serialization.PublicFormat.Raw
         ).hex()
 
+    def resume(self, entries: list["Entry"]) -> None:
+        """Seed the in-memory chain from a persisted trail so a fresh process appends entries that
+        continue the SAME hash-chain. Used by the per-call Claude Code hook, where each tool call is a
+        separate process sharing one durable audit log."""
+        self._entries = list(entries)
+        self._head = entries[-1].head if entries else GENESIS
+
     def record(self, action: Action, verdict: str, reason: str, executed: bool) -> None:
         """Append an already-decided action to the trace + chain. Use this from an executor that has
         its own gate, so the receipt records the REAL outcome (whether the action actually ran, e.g.

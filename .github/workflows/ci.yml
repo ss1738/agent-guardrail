@@ -34,9 +34,14 @@ jobs:
         run: python3 tests/test_verify_server.py
       - name: presets suite
         run: python3 tests/test_presets.py
+      - name: claude-code hook suite
+        run: python3 tests/test_claude_code_hook.py
       - name: cli smoke (packaging + console scripts)
         run: |
           agent-guardrail-verify --help
           agent-guardrail-policy init --protected main,release
           agent-guardrail-policy init --preset devops --out /tmp/ci-devops-spec.json
           agent-guardrail-serve --help
+          agent-guardrail-hook --print-config
+          echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main --force"}}' \
+            | agent-guardrail-hook | grep -q '"permissionDecision": "deny"'

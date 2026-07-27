@@ -128,6 +128,34 @@ Read this straight: with a default-allow design, a low false-block rate on legit
 - **A well-aligned agent will often refuse an injection on its own.** In `demo_hijack.py` a real Claude agent read the planted note and declined it. The gate's value is being the deterministic backstop for when alignment fails.
 - **Integration is via MCP or a function-calling loop** (see below). The formal guarantee still covers only the git-branch policy wherever the gate runs.
 
+## Use it in Claude Code (one hook, zero code)
+
+Claude Code runs shell commands on your machine, which is exactly the threat model. It has a native
+`PreToolUse` hook that hands every tool call to an external command and lets it block the call, so the
+gate drops in with no framework code:
+
+```bash
+pip install agent-guardrail
+agent-guardrail-hook --print-config      # prints the .claude/settings.json block to paste
+```
+
+Paste that block into `.claude/settings.json` and every `Bash` call is classified by the same gate the
+receipts prove: a force-push to `main`, an `rm -rf ~`, a secret piped to the network are denied and
+Claude is told why; a history rewrite on an unnamed branch asks the human; everything else proceeds
+untouched. Policy is read from the environment, so one install serves every repo:
+
+```bash
+export GUARDRAIL_PRESET=devops                              # opt-in cloud/DB kill-command denylist
+export GUARDRAIL_AUDIT_LOG=~/.agent-guardrail/session.jsonl # a real session leaves a verifiable trail
+```
+
+With `GUARDRAIL_AUDIT_LOG` set, each call (a separate hook process) appends to one durable hash-chained
+trail, so a live Claude Code session produces a receipt you can check with `agent-guardrail-verify`. The
+hook is fail-open by design: any internal error lets the call proceed, because a security hook that
+bricks the agent gets uninstalled. Its remit is high-precision blocks on a defined threat model, and it
+is exactly as strong as the gate being the agent's route (an agent with an unguarded second shell
+bypasses it, the same assumption as below).
+
 ## Use it with any MCP agent
 
 The gate runs as an [MCP](https://modelcontextprotocol.io) server, the tool-call
