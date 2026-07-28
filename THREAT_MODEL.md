@@ -52,6 +52,6 @@ legitimate build, test, and commit work.
 Even under the assumptions, T2-T6 are heuristic and bypassable by obfuscation. The
 only property proven end-to-end is that the *structured* git policy (T1) has no gap
 that admits a protected-history rewrite. Everything else is precision-tuned
-pattern matching, validated for low false-friction on 2,836 real commands but not
+pattern matching, validated for low false-friction on 3,790 real commands but not
 proven complete against evasion. Deploy accordingly: defense in depth, in front of
 a sandbox, not as the only control.
