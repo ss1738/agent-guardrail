@@ -168,11 +168,12 @@ files. An agent that also has an unguarded raw shell, or that can edit the serve
 file, bypasses the gate. Run it out-of-process and give the agent no other
 execution path. See [THREAT_MODEL.md](THREAT_MODEL.md).
 
+After `pip install 'agent-guardrail[mcp]'`, the server is the `agent-guardrail-mcp` command:
+
 ```jsonc
 // in your MCP client config (Claude Desktop, Cursor, ...)
 "agent-guardrail": {
-  "command": "python3",
-  "args": ["/path/to/agent-guardrail/integrations/mcp_server.py"],
+  "command": "agent-guardrail-mcp",
   "env": {
     "GUARDRAIL_WORKSPACE": "/path/to/your/repo",
     "GUARDRAIL_AUDIT_LOG": "/path/to/audit.jsonl",           // optional: durable trail on disk

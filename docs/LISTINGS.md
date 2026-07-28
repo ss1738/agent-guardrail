@@ -14,17 +14,18 @@ Facts used (from `pyproject.toml` and `integrations/mcp_server.py`):
   ```
 - Differentiator: git-branch policy machine-checked by z3; signed verifiable receipts; MIT.
 
-## Step 0 (prerequisite, ~15 min): a clean MCP entry point
-Right now the MCP server launches from a file path (`integrations/mcp_server.py`), which is fine for a hand-written config but not for registries that run the pip package directly. Add a console entry point so `agent-guardrail-mcp` just works after `pip install`:
+## Step 0 (prerequisite): a clean MCP entry point
+**DONE.** The MCP server now lives in the package at `agent_guardrail/mcp_server.py` with a `main()`, wired as a console script in `pyproject.toml`:
+```toml
+agent-guardrail-mcp = "agent_guardrail.mcp_server:main"
+```
+So after `pip install 'agent-guardrail[mcp]'` the server is just `agent-guardrail-mcp`. The old `integrations/mcp_server.py` path still works (backward-compatible shim).
 
-- Give `integrations/mcp_server.py` (or a copy inside the `agent_guardrail` package) a `def main(): ...` that starts the server.
-- In `pyproject.toml` add under `[project.scripts]`:
-  ```toml
-  agent-guardrail-mcp = "agent_guardrail.mcp_server:main"
-  ```
-- Publish `agent-guardrail` to PyPI (`python -m build && twine upload dist/*`).
-
-Do this before the official registry and Smithery entries below (they run the package). The awesome-list and mcp.so entries work without it.
+**Remaining:** publish `agent-guardrail` to PyPI so the registries can install it:
+```bash
+python -m build && twine upload dist/*
+```
+Do this before the official registry and Smithery entries below (they run the package). The awesome-list and mcp.so entries work even before PyPI.
 
 ## 1. awesome-mcp-servers (PR)
 Repo: `punkpeye/awesome-mcp-servers`. Add under the Security category (emoji: python + local). One line:
