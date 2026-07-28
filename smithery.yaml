@@ -1,0 +1,27 @@
+# Smithery listing config (smithery.ai). Connect the GitHub repo on Smithery and it
+# reads this. Requires the package on PyPI (`pip install agent-guardrail[mcp]`) so the
+# `agent-guardrail-mcp` command exists.
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    required: ["workspace"]
+    properties:
+      workspace:
+        type: string
+        description: Absolute path to the repo the agent operates on
+      auditLog:
+        type: string
+        description: Optional path to stream every gated action to disk (survives a crash)
+      alertUrl:
+        type: string
+        description: Optional Slack-compatible webhook fired on every block
+  commandFunction: |
+    (config) => ({
+      command: "agent-guardrail-mcp",
+      env: {
+        GUARDRAIL_WORKSPACE: config.workspace,
+        ...(config.auditLog ? { GUARDRAIL_AUDIT_LOG: config.auditLog } : {}),
+        ...(config.alertUrl ? { GUARDRAIL_ALERT_URL: config.alertUrl } : {})
+      }
+    })
