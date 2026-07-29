@@ -34,6 +34,18 @@ def test_blocks_secret_and_ci_writes():
     assert v(Action("write", path="src/lib.rs", content="pub fn f(){}")) == "ALLOW"
 
 
+def test_blocks_modern_provider_key_formats():
+    # modern OpenAI project keys (sk-proj-) and Anthropic keys (sk-ant-) carry a word-
+    # prefix segment before the random body; the earlier sk-[alnum]{20,} regex missed both.
+    proj = "sk-proj-" + "Ab3xK9mQ2nL5vR8tW1cY7dE4fH6gJ0pS"
+    ant = "sk-ant-api03-" + "Ab3xK9mQ2nL5vR8tW1cY7dE4fH6gJ0"
+    assert v(Action("write", path=".env", content="OPENAI_API_KEY=" + proj)) == "BLOCK"
+    assert v(Action("write", path=".env", content="ANTHROPIC_API_KEY=" + ant)) == "BLOCK"
+    # a short sk- string and a benign hyphenated name must still be allowed (no false block)
+    assert v(Action("write", path="notes.md", content="see sk-abc123 below")) == "ALLOW"
+    assert v(Action("write", path="notes.md", content="branch sk-my-cool-feature-name")) == "ALLOW"
+
+
 def test_blocks_destructive_shell():
     assert v(Action("shell", cmd="rm -rf .git")) == "BLOCK"
     assert v(Action("shell", cmd="rm -rf .")) == "BLOCK"

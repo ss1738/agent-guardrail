@@ -64,7 +64,9 @@ class PolicySpec:
 DEFAULT_SPEC = PolicySpec()
 
 SECRET_RE = re.compile(
-    r"(sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
+    # sk- allows optional word- prefixes (sk-proj-, sk-ant-api03-) before the 20+ char
+    # random body, so modern OpenAI/Anthropic keys match while short strings still do not.
+    r"(sk-(?:[A-Za-z0-9]+-)*[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----|xox[baprs]-[0-9A-Za-z-]{10,})")
 # References to secret FILES (not just inline secret values): SSH/TLS private keys, dotenv,
 # and cloud/registry credential files. The most common agent-hijack exfil is `curl -d @~/.ssh/id_rsa`,
