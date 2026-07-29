@@ -150,7 +150,19 @@ export GUARDRAIL_AUDIT_LOG=~/.qedra/session.jsonl # a real session leaves a veri
 ```
 
 With `GUARDRAIL_AUDIT_LOG` set, each call (a separate hook process) appends to one durable hash-chained
-trail, so a live Claude Code session produces a receipt you can check with `qedra-verify`. The
+trail, so a live Claude Code session leaves a verifiable record. Turn that trail into a single signed,
+third-party-verifiable receipt with one command:
+
+```bash
+qedra-attest ~/.qedra/session.jsonl --agent-id my-agent --out receipt.json
+# attested: 12 entries (2 blocked), agent 'my-agent' -> receipt.json
+# public key: 302780f5...     verify with:  qedra-verify receipt.json --pin-key 302780f5...
+qedra-verify receipt.json --pin-key 302780f5...   # VERIFIED: untampered and sound
+```
+
+`qedra-attest` checks the trail's integrity first (a tampered log can never be re-signed into a valid
+receipt), manages the Ed25519 key at `~/.qedra/signing_key` (mode 600, generated on first use), and
+prints the public key so a relying party can pin the agent's identity to it. The
 hook is fail-open by design: any internal error lets the call proceed, because a security hook that
 bricks the agent gets uninstalled. Its remit is high-precision blocks on a defined threat model, and it
 is exactly as strong as the gate being the agent's route (an agent with an unguarded second shell
