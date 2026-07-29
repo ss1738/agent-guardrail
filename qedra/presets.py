@@ -5,7 +5,7 @@ lean. But an agent with cloud or database credentials can destroy far more than 
 add high-precision, catastrophic infra/data-destruction patterns as an OPT-IN `extra_shell_denylist`,
 so a team running an agent with real access can turn them on without changing the validated default.
 
-    from agent_guardrail.presets import preset_spec
+    from qedra.presets import preset_spec
     policy = Policy("prod", spec=preset_spec("devops"))          # default rules + devops kill-commands
 
 They are heuristics (regex over shell), high-precision but bypassable by obfuscation, exactly like the

@@ -14,8 +14,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.control_plane import Policy, Receipt, verify_receipt, ControlPlane
-from agent_guardrail.tool_gate import ToolGate, openai_tools
+from qedra.control_plane import Policy, Receipt, verify_receipt, ControlPlane
+from qedra.tool_gate import ToolGate, openai_tools
 
 FAKE = "ghp_" + "FAKE" * 9
 

@@ -1,5 +1,5 @@
 [project]
-name = "agent-guardrail"
+name = "qedra"
 version = "0.2.0"
 description = "A runtime gate for autonomous coding agents. It blocks destructive tool calls (force-push main, rm -rf, secret exfil) while letting real work through. Its git-branch sub-policy is machine-checked by z3; the rest is high-precision heuristics."
 readme = "README.md"
@@ -12,19 +12,19 @@ dependencies = ["z3-solver>=4.12", "cryptography>=42"]
 mcp = ["mcp>=1.0"]
 
 [project.scripts]
-agent-guardrail-verify = "agent_guardrail.verify_cli:main"
-agent-guardrail-redact = "agent_guardrail.redact_cli:main"
-agent-guardrail-policy = "agent_guardrail.policy_cli:main"
-agent-guardrail-serve = "agent_guardrail.verify_server:main"
-agent-guardrail-hook = "agent_guardrail.claude_code_hook:main"
-agent-guardrail-mcp = "agent_guardrail.mcp_server:main"
+qedra-verify = "qedra.verify_cli:main"
+qedra-redact = "qedra.redact_cli:main"
+qedra-policy = "qedra.policy_cli:main"
+qedra-serve = "qedra.verify_server:main"
+qedra-hook = "qedra.claude_code_hook:main"
+qedra-mcp = "qedra.mcp_server:main"
 
 [project.urls]
-Homepage = "https://github.com/ss1738/agent-guardrail"
+Homepage = "https://github.com/ss1738/qedra"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["agent_guardrail"]
+packages = ["qedra"]

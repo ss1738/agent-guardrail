@@ -1,13 +1,13 @@
-"""`agent-guardrail-verify`: the relying-party side of the Agent Control Plane.
+"""`qedra-verify`: the relying-party side of the Agent Control Plane.
 
 An auditor, bank, or insurer receives a receipt (JSON) and checks it against the policy THEY hold and,
 optionally, a public key THEY have pinned to the agent's identity. No operator secret, no trust in the
 issuer. Exit 0 = verified, 1 = rejected, 2 = usage error.
 
-    agent-guardrail-verify receipt.json
-    cat receipt.json | agent-guardrail-verify -            # from stdin
-    agent-guardrail-verify receipt.json --policy-id acme-prod-agent-policy --policy-version 1
-    agent-guardrail-verify receipt.json --pin-key <hex-ed25519-public-key>
+    qedra-verify receipt.json
+    cat receipt.json | qedra-verify -            # from stdin
+    qedra-verify receipt.json --policy-id acme-prod-agent-policy --policy-version 1
+    qedra-verify receipt.json --pin-key <hex-ed25519-public-key>
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .registry import Registry
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        prog="agent-guardrail-verify",
+        prog="qedra-verify",
         description="Independently verify an Agent Control Plane receipt.",
     )
     p.add_argument("receipt", help="path to the receipt JSON, or '-' for stdin")

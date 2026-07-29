@@ -1,17 +1,17 @@
-# agent-guardrail
+# qedra
 
-[![CI](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml/badge.svg)](https://github.com/ss1738/agent-guardrail/actions/workflows/ci.yml)
+[![CI](https://github.com/ss1738/qedra/actions/workflows/ci.yml/badge.svg)](https://github.com/ss1738/qedra/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 <p align="center">
-  <img src="docs/demo.svg" alt="A hijacked coding agent tries to force-push main, rm -rf the repo, leak a secret and wipe CI; agent-guardrail blocks every one while the real fix goes through" width="760">
+  <img src="docs/demo.svg" alt="A hijacked coding agent tries to force-push main, rm -rf the repo, leak a secret and wipe CI; qedra blocks every one while the real fix goes through" width="760">
 </p>
 
 A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell`, `write_file`, and `git` call is checked before it executes. It blocks the actions that wreck a repository (force-pushing `main`, `rm -rf` on the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave.
 
 Its git-branch sub-policy is machine-checked by z3, so the policy can find its own gaps. That is a property almost no guardrail has. Everything else is high-precision heuristics, and this README says which is which.
 
-Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. agent-guardrail is the deterministic layer that does not depend on the model. It checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
+Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell, and rewrite git history on their own. Their safety today rests on the model behaving: prompt guardrails and alignment. That is probabilistic and model-dependent. A well-aligned model may refuse a prompt injection; a jailbroken or weaker one will not. qedra is the deterministic layer that does not depend on the model. It checks every tool call before it runs, so a compromised agent is stopped regardless of why it issued the action.
 
 ## Beyond the gate: verifiable receipts (Agent Control Plane)
 
@@ -22,31 +22,31 @@ Coding agents (Copilot Workspace, SWE-agent, OpenHands) now open PRs, run shell,
 The gate stops bad actions. The Agent Control Plane adds the other half a relying party needs: a signed receipt that anyone can verify without trusting you or your server. Bind an agent identity to a named, committed policy, gate its tool calls, and export a receipt. The receipt holds the agent id, the policy commitment, every gated action with its verdict, and an Ed25519 signature over a tamper-evident hash chain. An auditor, a bank, or an insurer verifies it with the public key alone:
 
 ```bash
-agent-guardrail-verify receipt.json
+qedra-verify receipt.json
 # VERIFIED: verified: 6 actions, policy acme-prod-agent-policy, untampered and sound
 ```
 
-`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert, delete, reorder, or alter), (3) the Ed25519 signature is valid, and (4) it re-runs the committed policy over the trace. Check 4 is the one that matters: a forged `ALLOW` on an action the policy would `BLOCK` is caught even when the operator re-chains and re-signs with their own key. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy. Relying parties who would rather not run Python can `agent-guardrail-serve` the same check over HTTP: `POST /verify` a receipt and get a JSON yes/no under the policy the server holds.
+`verify_receipt` runs four independent checks: (1) the receipt names the policy the verifier holds (commitment match), (2) the public hash-chain is intact (no insert, delete, reorder, or alter), (3) the Ed25519 signature is valid, and (4) it re-runs the committed policy over the trace. Check 4 is the one that matters: a forged `ALLOW` on an action the policy would `BLOCK` is caught even when the operator re-chains and re-signs with their own key. An honest receipt and a lie are cryptographically distinguishable by anyone holding only the receipt and the public policy. Relying parties who would rather not run Python can `qedra-serve` the same check over HTTP: `POST /verify` a receipt and get a JSON yes/no under the policy the server holds.
 
 ```bash
 python3 demo_receipt.py   # a gated session -> VERIFIED independently -> operator forges + re-signs -> CAUGHT
 ```
 
-A receipt carries its own key, so on its own it proves that some key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`agent-guardrail-verify receipt.json --registry agents.json`), and verification also proves the receipt is from that agent. An attacker who signs a compliant trace but impersonates a registered identity is rejected.
+A receipt carries its own key, so on its own it proves that some key signed a compliant trace. Pin each agent's public key once, out-of-band, in a registry you control (`qedra-verify receipt.json --registry agents.json`), and verification also proves the receipt is from that agent. An attacker who signs a compliant trace but impersonates a registered identity is rejected.
 
 **Privacy: redact without breaking the proof.** The chain is over a salted commitment of each action, so `receipt.redact()` strips the raw commands and file contents while the signature and integrity stay valid. A witness discloses any subset of actions to prove those verdicts sound. You can hand an insurer proof your agent stayed in policy without handing them your production commands. The verification result states exactly how much was disclosed, so a partly-redacted receipt is never mistaken for a fully-sound one.
 
 ```bash
-agent-guardrail-redact receipt.json --out redacted.json --witness witness.json
-agent-guardrail-verify redacted.json                        # integrity + authenticity, no content revealed
-agent-guardrail-verify redacted.json --witness witness.json  # + full soundness, from the witness
+qedra-redact receipt.json --out redacted.json --witness witness.json
+qedra-verify redacted.json                        # integrity + authenticity, no content revealed
+qedra-verify redacted.json --witness witness.json  # + full soundness, from the witness
 ```
 
 **Zero-knowledge receipts (experimental, git-branch policy only).** Selective disclosure still forces a choice per action: reveal it, or lose its soundness proof. In zk-mode (`ControlPlane(agent_id, policy, zk=True)`) a git-branch action instead carries a zero-knowledge proof that it is one the policy classifies as the recorded verdict, over the same commitment that is in the chain. You can redact the action entirely and a verifier still confirms the verdict is correct, and still catches a forged "it was allowed" (`demo_zk_receipt.py`). The proof runs over a pluggable group: the default is a 2048-bit MODP group, and `zk="ec"` selects secp256k1, which is about 10x faster and 8x smaller (measured). This is prototype cryptography (a Sigma OR-proof with Fiat-Shamir in the random-oracle model) and needs external review before it is relied on as a guarantee. The design, scope, and roadmap are in [docs/ZK_ROADMAP.md](docs/ZK_ROADMAP.md).
 
-**Configurable policies, bound by content.** The policy is data (`PolicySpec`): the protected branches plus any org-specific secret or shell-denylist patterns, with the built-in threat model as the default. `Policy.root()` commits to the spec's content hash, not a version label, so a receipt binds the exact ruleset it was produced under. Set your own protected branches with `Policy("prod", spec=PolicySpec(protected_branches=("trunk",)))`, and the git-branch soundness proof (z3) runs over your custom set too. A verifier holds the same spec (`agent-guardrail-verify --policy-spec spec.json`) and its hash must match the receipt's root, so "the verifier holds the policy" is literal, not a promise. Author and inspect a spec with `agent-guardrail-policy init --protected main,release --out spec.json` and `agent-guardrail-policy show spec.json --policy-id acme-prod`, which prints the content hash and the resulting policy root.
+**Configurable policies, bound by content.** The policy is data (`PolicySpec`): the protected branches plus any org-specific secret or shell-denylist patterns, with the built-in threat model as the default. `Policy.root()` commits to the spec's content hash, not a version label, so a receipt binds the exact ruleset it was produced under. Set your own protected branches with `Policy("prod", spec=PolicySpec(protected_branches=("trunk",)))`, and the git-branch soundness proof (z3) runs over your custom set too. A verifier holds the same spec (`qedra-verify --policy-spec spec.json`) and its hash must match the receipt's root, so "the verifier holds the policy" is literal, not a promise. Author and inspect a spec with `qedra-policy init --protected main,release --out spec.json` and `qedra-policy show spec.json --policy-id acme-prod`, which prints the content hash and the resulting policy root.
 
-**Opt-in presets for agents with real credentials.** The default is validated for false friction on 2,836 real commands, so it stays lean and covers the git/file/local-shell threat model. But an agent holding cloud or database credentials can destroy far more than a repo. The `devops` preset adds a high-precision denylist for catastrophic infra/data commands, `terraform destroy`, `kubectl delete namespace`, `aws s3 rm --recursive`, `DROP DATABASE`, and similar, that are almost never legitimate for an autonomous agent. It is off by default (opt in with `agent-guardrail-policy init --preset devops` or `Policy("prod", spec=preset_spec("devops"))`), so the validated default is untouched unless you turn it on. Like every shell rule these are heuristics: high-precision on the direct forms, bypassable by obfuscation, so pair them with least-privilege credentials and a sandbox.
+**Opt-in presets for agents with real credentials.** The default is validated for false friction on 2,836 real commands, so it stays lean and covers the git/file/local-shell threat model. But an agent holding cloud or database credentials can destroy far more than a repo. The `devops` preset adds a high-precision denylist for catastrophic infra/data commands, `terraform destroy`, `kubectl delete namespace`, `aws s3 rm --recursive`, `DROP DATABASE`, and similar, that are almost never legitimate for an autonomous agent. It is off by default (opt in with `qedra-policy init --preset devops` or `Policy("prod", spec=preset_spec("devops"))`), so the validated default is untouched unless you turn it on. Like every shell rule these are heuristics: high-precision on the direct forms, bypassable by obfuscation, so pair them with least-privilege credentials and a sandbox.
 
 **Durable audit log + alerts.** In production you cannot rely on the process surviving to export a receipt at the end. Pass `ControlPlane(agent_id, policy, audit_log=AuditLog("audit.jsonl"))` and every gated action is streamed to disk as it happens, so a crashed or killed agent still leaves a tamper-evident trail. `verify_log()` recomputes the hash-chain over the file with no key (integrity), and `receipt_from_log()` reconstructs a signed receipt from it (authenticity). An `on_block=` callback fires when the gate blocks an action; the ready-made `webhook_alert(url)` posts a Slack-compatible alert, and its failures never break the gate. Over the MCP server, set `GUARDRAIL_AUDIT_LOG` and `GUARDRAIL_ALERT_URL` to turn both on. See `demo_audit.py`.
 
@@ -98,7 +98,7 @@ This guarantee covers the structured git tool-call path only. It does not verify
 
 | Tool | Layer | Catches | Why this is different |
 |---|---|---|---|
-| git server-side hooks (`pre-receive`) | git server | bad pushes, once they reach the server | agent-guardrail gates the action before it runs locally, and covers file/shell too, not just pushes |
+| git server-side hooks (`pre-receive`) | git server | bad pushes, once they reach the server | qedra gates the action before it runs locally, and covers file/shell too, not just pushes |
 | seccomp / gVisor | syscall / kernel | syscall-level isolation | strong isolation, but no notion of "protected branch" or "this is a secret"; complementary, not a substitute |
 | OPA / policy engines | request / API | structured policy decisions | general policy, no formal self-check of the policy and no coding-agent action model out of the box |
 | CodeQL / Copilot Autofix | static analysis | vulnerabilities in code | analyses code at rest; says nothing about what an agent does to the repo at runtime |
@@ -135,8 +135,8 @@ Claude Code runs shell commands on your machine, which is exactly the threat mod
 gate drops in with no framework code:
 
 ```bash
-pip install agent-guardrail
-agent-guardrail-hook --print-config      # prints the .claude/settings.json block to paste
+pip install qedra
+qedra-hook --print-config      # prints the .claude/settings.json block to paste
 ```
 
 Paste that block into `.claude/settings.json` and every `Bash` call is classified by the same gate the
@@ -146,11 +146,11 @@ untouched. Policy is read from the environment, so one install serves every repo
 
 ```bash
 export GUARDRAIL_PRESET=devops                              # opt-in cloud/DB kill-command denylist
-export GUARDRAIL_AUDIT_LOG=~/.agent-guardrail/session.jsonl # a real session leaves a verifiable trail
+export GUARDRAIL_AUDIT_LOG=~/.qedra/session.jsonl # a real session leaves a verifiable trail
 ```
 
 With `GUARDRAIL_AUDIT_LOG` set, each call (a separate hook process) appends to one durable hash-chained
-trail, so a live Claude Code session produces a receipt you can check with `agent-guardrail-verify`. The
+trail, so a live Claude Code session produces a receipt you can check with `qedra-verify`. The
 hook is fail-open by design: any internal error lets the call proceed, because a security hook that
 bricks the agent gets uninstalled. Its remit is high-precision blocks on a defined threat model, and it
 is exactly as strong as the gate being the agent's route (an agent with an unguarded second shell
@@ -168,12 +168,12 @@ files. An agent that also has an unguarded raw shell, or that can edit the serve
 file, bypasses the gate. Run it out-of-process and give the agent no other
 execution path. See [THREAT_MODEL.md](THREAT_MODEL.md).
 
-After `pip install 'agent-guardrail[mcp]'`, the server is the `agent-guardrail-mcp` command:
+After `pip install 'qedra[mcp]'`, the server is the `qedra-mcp` command:
 
 ```jsonc
 // in your MCP client config (Claude Desktop, Cursor, ...)
-"agent-guardrail": {
-  "command": "agent-guardrail-mcp",
+"qedra": {
+  "command": "qedra-mcp",
   "env": {
     "GUARDRAIL_WORKSPACE": "/path/to/your/repo",
     "GUARDRAIL_AUDIT_LOG": "/path/to/audit.jsonl",           // optional: durable trail on disk
@@ -207,8 +207,8 @@ that loop with no SDK dependency, because a tool call is just a `(name, argument
 tools, then route every call through the `ToolGate`:
 
 ```python
-from agent_guardrail.tool_gate import ToolGate, openai_tools   # or anthropic_tools()
-from agent_guardrail.control_plane import ControlPlane, Policy
+from qedra.tool_gate import ToolGate, openai_tools   # or anthropic_tools()
+from qedra.control_plane import ControlPlane, Policy
 
 gate = ToolGate("/path/to/repo", control_plane=ControlPlane("my-agent", Policy("prod")))
 # ... register openai_tools() with the model ...
@@ -226,7 +226,7 @@ only route to shell, git, and files (the same out-of-process assumption as the M
 ## Run it
 
 ```bash
-pip install -e .                           # installs the package + the `agent-guardrail-verify` command
+pip install -e .                           # installs the package + the `qedra-verify` command
 # (or, to just run the scripts below without the CLI: pip install z3-solver cryptography "mcp")
 python3 tests/test_guardrail.py            # 11 tests (the gate)
 python3 tests/test_control_plane.py        # 34 tests (verifiable receipts + 0/500 forgeries caught)

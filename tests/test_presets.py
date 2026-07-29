@@ -4,9 +4,9 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.control_plane import Policy
-from agent_guardrail.guardrail import Action, Guardrail
-from agent_guardrail.presets import PRESETS, preset_names, preset_spec
+from qedra.control_plane import Policy
+from qedra.guardrail import Action, Guardrail
+from qedra.presets import PRESETS, preset_names, preset_spec
 
 
 def v(g, cmd):
@@ -75,8 +75,8 @@ def test_cli_init_preset_roundtrip():
     import tempfile
     from contextlib import redirect_stdout
 
-    from agent_guardrail.guardrail import PolicySpec
-    from agent_guardrail.policy_cli import main
+    from qedra.guardrail import PolicySpec
+    from qedra.policy_cli import main
 
     with tempfile.NamedTemporaryFile("r", suffix=".json", delete=False) as fh:
         path = fh.name

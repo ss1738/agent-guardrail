@@ -12,9 +12,9 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail import verify_cli
-from agent_guardrail.control_plane import ControlPlane, Policy, Receipt, verify_receipt
-from agent_guardrail.guardrail import DEFAULT_SPEC, Action, Guardrail, PolicySpec, prove_policy_sound
+from qedra import verify_cli
+from qedra.control_plane import ControlPlane, Policy, Receipt, verify_receipt
+from qedra.guardrail import DEFAULT_SPEC, Action, Guardrail, PolicySpec, prove_policy_sound
 
 
 def v(g, a):
@@ -115,7 +115,7 @@ def test_zk_proof_bound_to_the_protected_set():
     # protected-ness STRUCTURE, and cross-set confusion between same-shape sets is prevented at the
     # receipt level by the policy root (test_receipt_is_rejected_under_a_different_spec). At the raw
     # proof level, a set of a DIFFERENT SIZE has a different allowed-set length, so the proof is rejected.
-    from agent_guardrail import zk
+    from qedra import zk
     act = Action("git", op="push", branch="trunk", force=True)
     C, proof, r = zk.prove_action(act, protected=("trunk",))
     assert zk.verify(C, proof, protected=("trunk",))                                  # correct set

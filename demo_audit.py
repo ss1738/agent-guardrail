@@ -11,9 +11,9 @@ import tempfile
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail.audit_log import AuditLog, receipt_from_log, verify_log
-from agent_guardrail.control_plane import ControlPlane, Policy, Receipt, verify_receipt
-from agent_guardrail.guardrail import Action
+from qedra.audit_log import AuditLog, receipt_from_log, verify_log
+from qedra.control_plane import ControlPlane, Policy, Receipt, verify_receipt
+from qedra.guardrail import Action
 
 
 def main():

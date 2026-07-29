@@ -8,9 +8,9 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail.audit_log import AuditLog, receipt_from_log, verify_log
-from agent_guardrail.control_plane import ControlPlane, Policy, Receipt, verify_receipt
-from agent_guardrail.guardrail import Action
+from qedra.audit_log import AuditLog, receipt_from_log, verify_log
+from qedra.control_plane import ControlPlane, Policy, Receipt, verify_receipt
+from qedra.guardrail import Action
 
 POLICY = Policy("audit-test", "1")
 
@@ -109,7 +109,7 @@ def test_webhook_alert_posts_the_block():
     import http.server
     import json as _json
     import threading
-    from agent_guardrail.alerts import webhook_alert
+    from qedra.alerts import webhook_alert
     received = {}
     class H(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
@@ -128,7 +128,7 @@ def test_webhook_alert_posts_the_block():
 
 
 def test_webhook_alert_survives_a_dead_endpoint():
-    from agent_guardrail.alerts import webhook_alert
+    from qedra.alerts import webhook_alert
     # nothing is listening; the alert must swallow the failure and not raise
     webhook_alert("http://127.0.0.1:1", timeout=0.5)(Action("shell", cmd="rm -rf .git"), "repo delete")
 

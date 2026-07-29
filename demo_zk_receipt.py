@@ -9,8 +9,8 @@ each git action was correctly classified, and still catch a forged "it was allow
 """
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail import zk as _zk
-from agent_guardrail.control_plane import (
+from qedra import zk as _zk
+from qedra.control_plane import (
     GENESIS,
     ControlPlane,
     Policy,
@@ -19,7 +19,7 @@ from agent_guardrail.control_plane import (
     _signing_payload,
     verify_receipt,
 )
-from agent_guardrail.guardrail import Action
+from qedra.guardrail import Action
 
 POLICY = Policy("acme-prod-agent-policy", "1")
 

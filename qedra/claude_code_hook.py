@@ -1,11 +1,11 @@
-"""`agent-guardrail-hook` -- a Claude Code PreToolUse hook.
+"""`qedra-hook` -- a Claude Code PreToolUse hook.
 
 Claude Code is the ICP: a coding agent that runs shell commands on your machine. It has a native
 `PreToolUse` hook that hands every tool call to an external command as JSON on stdin and lets that
 command block it. This wires the guardrail into that seam, so the same gate that the receipts prove
 runs on real tool calls with no framework code:
 
-    agent-guardrail-hook --print-config      # prints the .claude/settings.json block to paste
+    qedra-hook --print-config      # prints the .claude/settings.json block to paste
 
 Registered as a `command` hook matching `Bash` (and, if you widen the matcher, `Write`/`Edit`), every
 tool call is classified by the same `Guardrail`:
@@ -17,7 +17,7 @@ Policy comes from the environment so one installed hook serves any repo:
   GUARDRAIL_PRESET       comma-separated opt-in presets, e.g. "devops"
   GUARDRAIL_POLICY_SPEC  path to a PolicySpec JSON (protected branches, extra patterns)
   GUARDRAIL_AUDIT_LOG    if set, every gated call is appended to a durable, hash-chained trail, so a
-                         real Claude Code session leaves a verifiable receipt (agent-guardrail-verify)
+                         real Claude Code session leaves a verifiable receipt (qedra-verify)
   GUARDRAIL_ALERT_URL    if set, a Slack-compatible webhook is posted on every BLOCK
 
 Fail-open by design: any internal error in the hook prints a note to stderr and lets the call proceed.
@@ -82,9 +82,9 @@ def decide(payload: dict, guard: Guardrail):
         return None, None, None
     decision = guard.check(action)
     if decision.verdict == "BLOCK":
-        out = _hook_output("deny", f"agent-guardrail blocked this: {decision.reason}")
+        out = _hook_output("deny", f"qedra blocked this: {decision.reason}")
     elif decision.verdict == "ESCALATE":
-        out = _hook_output("ask", f"agent-guardrail wants a human to confirm: {decision.reason}")
+        out = _hook_output("ask", f"qedra wants a human to confirm: {decision.reason}")
     else:
         out = None
     return out, action, decision
@@ -120,7 +120,7 @@ def _maybe_record(payload: dict, action: Action, decision) -> None:
         cp.resume(AuditLog.load(path))          # continue the file's hash-chain across processes
         cp.record(action, decision.verdict, decision.reason, executed=(decision.verdict == "ALLOW"))
     except Exception as e:                       # logging must never break the hook
-        print(f"agent-guardrail-hook: audit logging skipped ({e})", file=sys.stderr)
+        print(f"qedra-hook: audit logging skipped ({e})", file=sys.stderr)
 
 
 CONFIG_SNIPPET = """{
@@ -129,7 +129,7 @@ CONFIG_SNIPPET = """{
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "agent-guardrail-hook" }
+          { "type": "command", "command": "qedra-hook" }
         ]
       }
     ]
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None, stdin=None) -> int:
         print("# Paste into .claude/settings.json (merge with any existing \"hooks\"):")
         print(CONFIG_SNIPPET)
         print("\n# Widen coverage to file writes with:  \"matcher\": \"Bash|Write|Edit\"")
-        print("# Env: GUARDRAIL_PRESET=devops  GUARDRAIL_AUDIT_LOG=~/.agent-guardrail/session.jsonl")
+        print("# Env: GUARDRAIL_PRESET=devops  GUARDRAIL_AUDIT_LOG=~/.qedra/session.jsonl")
         return 0
 
     stdin = stdin or sys.stdin
@@ -151,7 +151,7 @@ def main(argv: list[str] | None = None, stdin=None) -> int:
         payload = json.load(stdin)
     except Exception as e:
         # cannot parse the hook input -> fail open (let the call proceed), but say why on stderr
-        print(f"agent-guardrail-hook: could not read hook input ({e}); allowing", file=sys.stderr)
+        print(f"qedra-hook: could not read hook input ({e}); allowing", file=sys.stderr)
         return 0
 
     try:
@@ -162,7 +162,7 @@ def main(argv: list[str] | None = None, stdin=None) -> int:
         if out is not None:
             print(json.dumps(out))
     except Exception as e:
-        print(f"agent-guardrail-hook: internal error ({e}); allowing", file=sys.stderr)
+        print(f"qedra-hook: internal error ({e}); allowing", file=sys.stderr)
     return 0   # always 0: block is expressed via the JSON body, never a nonzero exit
 
 

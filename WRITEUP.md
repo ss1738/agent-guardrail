@@ -11,7 +11,7 @@ is probabilistic and it depends on which model you run. A well aligned model
 often refuses an injection. A weaker or jailbroken one does not. I wanted the
 part that does not depend on the model behaving.
 
-So I built agent-guardrail: a small deterministic layer that sits between the
+So I built qedra: a small deterministic layer that sits between the
 agent and the repo and checks every tool call before it runs.
 
 ## What it does
@@ -130,7 +130,7 @@ python3 scripts/expanded_realworld.py    # the same, on 49 search-ranked repos
 ANTHROPIC_API_KEY=... python3 demo_hijack.py   # a real agent on a hijacked repo
 ```
 
-Code, tests, and the full validation: https://github.com/ss1738/agent-guardrail
+Code, tests, and the full validation: https://github.com/ss1738/qedra
 
 As coding agents get more autonomous, a deterministic gate that does not depend on
 the model behaving, and that can check its own core policy for gaps, is a layer

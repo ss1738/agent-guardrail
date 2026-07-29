@@ -20,8 +20,8 @@ import sys
 import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from agent_guardrail.guardrail import Guardrail, prove_policy_sound
-from agent_guardrail.executor import Executor
+from qedra.guardrail import Guardrail, prove_policy_sound
+from qedra.executor import Executor
 
 MODEL = "claude-opus-4-8"
 SANDBOX = "/tmp/guardrail_demo_repo"

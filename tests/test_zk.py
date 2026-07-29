@@ -11,8 +11,8 @@ import secrets
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.guardrail import Action
-from agent_guardrail import zk
+from qedra.guardrail import Action
+from qedra import zk
 
 
 # --- the group the whole construction rests on -----------------------------

@@ -59,7 +59,7 @@ trusts neither the operator nor the server.*
 - **The verifier independently holds the policy.** The soundness re-run is only meaningful because the
   verifier reconstructs the policy themselves; taking the policy on the receipt's word makes check 1
   vacuous. Ship the policy spec to relying parties, versioned; they pass it with
-  `agent-guardrail-verify --policy-spec spec.json`, and its content hash must match the receipt's root.
+  `qedra-verify --policy-spec spec.json`, and its content hash must match the receipt's root.
 
 ## Privacy: redaction and selective disclosure
 

@@ -8,8 +8,8 @@ import sys
 import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.claude_code_hook import action_from_tool_call, decide, main
-from agent_guardrail.guardrail import Guardrail, PolicySpec
+from qedra.claude_code_hook import action_from_tool_call, decide, main
+from qedra.guardrail import Guardrail, PolicySpec
 
 
 def _bash(cmd):
@@ -26,7 +26,7 @@ def test_blocks_force_push_to_protected_branch():
     hso = out["hookSpecificOutput"]
     assert hso["hookEventName"] == "PreToolUse"
     assert hso["permissionDecision"] == "deny"
-    assert "agent-guardrail blocked" in hso["permissionDecisionReason"]
+    assert "qedra blocked" in hso["permissionDecisionReason"]
 
 
 def test_blocks_catastrophic_rm():
@@ -48,7 +48,7 @@ def test_escalate_maps_to_ask():
 
 
 def test_preset_opt_in_blocks_terraform_destroy():
-    from agent_guardrail.presets import preset_spec
+    from qedra.presets import preset_spec
     out, _, dec = _decision(_bash("terraform destroy -auto-approve"), spec=preset_spec("devops"))
     assert dec.verdict == "BLOCK" and out["hookSpecificOutput"]["permissionDecision"] == "deny"
     # ...and without the preset the same command is out of scope (default is unchanged)
@@ -102,7 +102,7 @@ def test_main_allow_prints_nothing():
 
 def test_audit_log_chains_across_separate_processes():
     """Each hook call is a fresh process; the durable trail must still form ONE verifiable chain."""
-    from agent_guardrail.audit_log import verify_log
+    from qedra.audit_log import verify_log
     with tempfile.NamedTemporaryFile(suffix=".jsonl", delete=False) as fh:
         path = fh.name
     os.remove(path)
@@ -127,7 +127,7 @@ def test_print_config():
         rc = main(["--print-config"])
     finally:
         sys.stdout = old
-    assert rc == 0 and '"PreToolUse"' in buf.getvalue() and "agent-guardrail-hook" in buf.getvalue()
+    assert rc == 0 and '"PreToolUse"' in buf.getvalue() and "qedra-hook" in buf.getvalue()
 
 
 if __name__ == "__main__":

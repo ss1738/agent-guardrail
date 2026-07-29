@@ -1,6 +1,6 @@
 """End-to-end proof that the gate lives in the real MCP tool-call path.
 
-Launches the agent-guardrail MCP server as a subprocess, connects to it as a real
+Launches the qedra MCP server as a subprocess, connects to it as a real
 MCP client over stdio (the same transport Claude Desktop / Cursor use), and issues
 a mix of legitimate and destructive tool calls. The destructive ones are blocked
 inside the protocol, before they touch the repo. This is the gate wired into a real
@@ -91,7 +91,7 @@ async def main():
             # pull the signed session receipt over MCP and verify it INDEPENDENTLY
             rec = await session.call_tool("session_receipt", {})
             sys.path.insert(0, os.path.dirname(HERE))
-            from agent_guardrail.control_plane import Policy, Receipt, verify_receipt
+            from qedra.control_plane import Policy, Receipt, verify_receipt
             receipt = Receipt.from_json(rec.content[0].text)
             v = verify_receipt(receipt, Policy(receipt.policy_id))
             print(f"session receipt: {len(receipt.entries)} actions, "

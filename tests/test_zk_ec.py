@@ -7,8 +7,8 @@ import secrets
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail import ec, zk, zk_ec
-from agent_guardrail.guardrail import Action
+from qedra import ec, zk, zk_ec
+from qedra.guardrail import Action
 
 BLOCK = Action("git", op="push", branch="main", force=True)
 ALLOW = Action("git", op="push", branch="feature", force=True)
@@ -56,7 +56,7 @@ def test_tampered_response_rejected():
 
 def test_serialization_roundtrip():
     C, proof, _ = zk_ec.prove_action(BLOCK)
-    from agent_guardrail.zk_core import ZKProof
+    from qedra.zk_core import ZKProof
     back = ZKProof.from_dict(proof.to_dict())
     assert zk_ec.verify(C, back) and back.t == proof.t
     # commitments/points serialize compactly (33-byte compressed points, 66 hex chars)
@@ -66,7 +66,7 @@ def test_serialization_roundtrip():
 def test_zero_knowledge_simulatable():
     # accepting transcripts are producible without the witness (HVZK): for a chosen challenge, every
     # clause equation holds and the challenges sum to the target
-    from agent_guardrail import zk_core
+    from qedra import zk_core
     _, m = zk.action_verdict(BLOCK)
     C, _ = zk_ec.commit(m)
     ms = zk.allowed_set("BLOCK")

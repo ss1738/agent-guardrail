@@ -4,7 +4,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.guardrail import Guardrail, Action, prove_policy_sound
+from qedra.guardrail import Guardrail, Action, prove_policy_sound
 
 _TOK = "ghp_" + "FAKE" * 9   # fixture, no secret-shaped literal committed
 G = Guardrail()

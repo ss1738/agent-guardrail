@@ -1,4 +1,4 @@
-"""agent-guardrail as an MCP server (package entry point).
+"""qedra as an MCP server (package entry point).
 
 MCP (Model Context Protocol) is the tool-call surface that Claude Desktop, Cursor,
 Copilot, Windsurf and other agents speak. This server exposes the usual coding-agent
@@ -8,13 +8,13 @@ the agent. Any MCP client that points at this server gets the gate for free.
 
 Install and run:
 
-    pip install 'agent-guardrail[mcp]'
-    agent-guardrail-mcp
+    pip install 'qedra[mcp]'
+    qedra-mcp
 
 Point an MCP client at it (e.g. Claude Desktop / Cursor):
 
-    "agent-guardrail": {
-      "command": "agent-guardrail-mcp",
+    "qedra": {
+      "command": "qedra-mcp",
       "env": {"GUARDRAIL_WORKSPACE": "/path/to/your/repo"}
     }
 
@@ -50,14 +50,14 @@ def build_server():
     except ImportError as exc:  # pragma: no cover - depends on optional extra
         raise SystemExit(
             "The MCP server needs the 'mcp' extra. Install it with:\n"
-            "    pip install 'agent-guardrail[mcp]'"
+            "    pip install 'qedra[mcp]'"
         ) from exc
 
-    from agent_guardrail.guardrail import Guardrail
-    from agent_guardrail.executor import Executor
-    from agent_guardrail.control_plane import ControlPlane, Policy
-    from agent_guardrail.audit_log import AuditLog
-    from agent_guardrail.alerts import webhook_alert
+    from qedra.guardrail import Guardrail
+    from qedra.executor import Executor
+    from qedra.control_plane import ControlPlane, Policy
+    from qedra.audit_log import AuditLog
+    from qedra.alerts import webhook_alert
 
     workspace = os.environ.get("GUARDRAIL_WORKSPACE", os.path.join(os.getcwd(), "workspace"))
     os.makedirs(workspace, exist_ok=True)
@@ -73,7 +73,7 @@ def build_server():
     control = ControlPlane(agent_id, policy, signing_key=_signing_key(), zk=zk, audit_log=audit, on_block=alert)
     ex = Executor(workspace, guard, control_plane=control)
 
-    mcp = FastMCP("agent-guardrail")
+    mcp = FastMCP("qedra")
 
     @mcp.tool()
     def run_shell(cmd: str) -> str:
@@ -105,7 +105,7 @@ def build_server():
         """Export a signed, independently-verifiable RECEIPT for this session: the agent id, the committed
         policy, every gated action with its verdict, and an Ed25519 signature over the tamper-evident chain
         head. A third party (an auditor, a bank, an insurer) can verify it with the PUBLIC KEY ALONE via
-        agent_guardrail.control_plane.verify_receipt, proving the agent stayed within policy, without
+        qedra.control_plane.verify_receipt, proving the agent stayed within policy, without
         trusting this server or its operator, and catching any forged ALLOW.
 
         redact=True strips every raw action (commands, file contents, branches) before returning. In

@@ -13,8 +13,8 @@ import subprocess
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from agent_guardrail.guardrail import Guardrail, Action
-from agent_guardrail.executor import Executor
+from qedra.guardrail import Guardrail, Action
+from qedra.executor import Executor
 
 # fixture token, built at runtime so no secret-shaped literal is committed
 SECRET = "ghp_" + "FAKE" * 9

@@ -1,4 +1,4 @@
-"""`agent-guardrail-serve` -- a tiny HTTP receipt-verification service.
+"""`qedra-serve` -- a tiny HTTP receipt-verification service.
 
 Relying parties do not want to run Python to check a receipt. This exposes the same
 `verify_receipt` logic over HTTP: the operator (or the relying party) runs the server with the policy
@@ -39,7 +39,7 @@ class _VerifyHandler(BaseHTTPRequestHandler):
         if self.path == "/health":
             self._send(200, {"status": "ok"})
         else:
-            self._send(200, {"service": "agent-guardrail-verify", "policy": self.policy.policy_id,
+            self._send(200, {"service": "qedra-verify", "policy": self.policy.policy_id,
                              "endpoints": ["POST /verify", "GET /health"]})
 
     def do_POST(self):
@@ -89,7 +89,7 @@ def build_server(policy: Policy, host: str = "127.0.0.1", port: int = 8787,
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="agent-guardrail-serve",
+    p = argparse.ArgumentParser(prog="qedra-serve",
                                 description="Serve receipt verification over HTTP.")
     p.add_argument("--policy-id", default="default-policy", help="the policy id THIS verifier holds")
     p.add_argument("--policy-version", default="1")
@@ -108,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     registry = Registry.load(args.registry) if args.registry else None
 
     srv = build_server(policy, args.host, args.port, pinned=args.pin_key, registry=registry)
-    print(f"agent-guardrail-verify listening on http://{args.host}:{args.port}  "
+    print(f"qedra-verify listening on http://{args.host}:{args.port}  "
           f"(policy {policy.policy_id}, root {policy.root()[:12]}...)", flush=True)
     try:
         srv.serve_forever()

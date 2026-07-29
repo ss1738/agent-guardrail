@@ -1,13 +1,13 @@
-"""`agent-guardrail-policy`: author and inspect a PolicySpec.
+"""`qedra-policy`: author and inspect a PolicySpec.
 
 A policy is data: the protected branches plus optional extra secret / shell-denylist patterns. This
 tool writes a spec.json, prints its content hash (the commitment a receipt binds), and shows the policy
 root a verifier checks. Ship the spec to relying parties; they verify with
-`agent-guardrail-verify --policy-spec spec.json`.
+`qedra-verify --policy-spec spec.json`.
 
-    agent-guardrail-policy init --protected main,release --out spec.json
-    agent-guardrail-policy show spec.json --policy-id acme-prod --policy-version 1
-    agent-guardrail-policy hash spec.json          # just the content hash (scriptable)
+    qedra-policy init --protected main,release --out spec.json
+    qedra-policy show spec.json --policy-id acme-prod --policy-version 1
+    qedra-policy hash spec.json          # just the content hash (scriptable)
 """
 from __future__ import annotations
 
@@ -35,7 +35,7 @@ def _bad_patterns(spec: PolicySpec) -> list[tuple[str, str]]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="agent-guardrail-policy", description="Author and inspect a PolicySpec.")
+    p = argparse.ArgumentParser(prog="qedra-policy", description="Author and inspect a PolicySpec.")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     pi = sub.add_parser("init", help="write a spec.json")

@@ -1,12 +1,12 @@
-"""`agent-guardrail-redact`: strip a receipt's raw actions for sharing, keeping the proof valid.
+"""`qedra-redact`: strip a receipt's raw actions for sharing, keeping the proof valid.
 
 An operator holds a full receipt (with the raw commands and file contents). To share it with an auditor
 or insurer without leaking that content, redact it: the signature and integrity survive (the chain is
 over commitments), and the separately-written witness lets you later disclose any subset to prove those
 verdicts sound.
 
-    agent-guardrail-redact receipt.json --out redacted.json --witness witness.json
-    agent-guardrail-redact receipt.json --reveal 2,3 --out redacted.json     # keep the blocked ones in the clear
+    qedra-redact receipt.json --out redacted.json --witness witness.json
+    qedra-redact receipt.json --reveal 2,3 --out redacted.json     # keep the blocked ones in the clear
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from .control_plane import Receipt
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(
-        prog="agent-guardrail-redact",
+        prog="qedra-redact",
         description="Redact a receipt for sharing; the signature stays valid.",
     )
     p.add_argument("receipt", help="path to the full receipt JSON")

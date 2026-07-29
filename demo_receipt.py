@@ -11,7 +11,7 @@ import tempfile
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail.control_plane import (
+from qedra.control_plane import (
     GENESIS,
     ControlPlane,
     Policy,
@@ -21,8 +21,8 @@ from agent_guardrail.control_plane import (
     _signing_payload,
     verify_receipt,
 )
-from agent_guardrail.executor import Executor
-from agent_guardrail.guardrail import Guardrail
+from qedra.executor import Executor
+from qedra.guardrail import Guardrail
 
 POLICY_ID, POLICY_VER = "acme-prod-agent-policy", "1"
 

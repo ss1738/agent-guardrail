@@ -1,4 +1,4 @@
-# Runs the agent-guardrail MCP server over stdio. Used by MCP hosts and by Glama's
+# Runs the qedra MCP server over stdio. Used by MCP hosts and by Glama's
 # introspection check (the server starts and responds to a list-tools request).
 FROM python:3.12-slim
 
@@ -8,7 +8,7 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
-COPY agent_guardrail ./agent_guardrail
+COPY qedra ./qedra
 COPY integrations ./integrations
 
 RUN pip install --no-cache-dir ".[mcp]"

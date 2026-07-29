@@ -3,7 +3,7 @@
 `ControlPlane(..., on_block=cb)` calls `cb(action, reason)` whenever the gate blocks an action. This
 module supplies drop-in callbacks so wiring an alert is one line:
 
-    from agent_guardrail.alerts import webhook_alert
+    from qedra.alerts import webhook_alert
     ControlPlane(agent_id, policy, on_block=webhook_alert("https://hooks.slack.com/services/..."))
 
 The callback is best-effort: a slow or dead endpoint never breaks the gate (the Control Plane also
@@ -27,7 +27,7 @@ def webhook_alert(url: str, timeout: float = 5.0):
     def _alert(action, reason: str) -> None:
         what = _summarize(action)
         body = json.dumps({
-            "text": f"agent-guardrail BLOCKED: {what}  ({reason})",
+            "text": f"qedra BLOCKED: {what}  ({reason})",
             "verdict": "BLOCK",
             "action": what,
             "reason": reason,

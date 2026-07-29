@@ -62,7 +62,7 @@ move to path 2 if/when a customer or underwriter needs it at scale.
 
 ## Milestones
 
-1. **DONE** - Sigma OR-proof for the git-branch policy (`agent_guardrail/zk.py`, `tests/test_zk.py`,
+1. **DONE** - Sigma OR-proof for the git-branch policy (`qedra/zk.py`, `tests/test_zk.py`,
    `demo_zk.py`). CDS OR-composition of Schnorr statements over Pedersen commitments in the order-Q QR
    subgroup of the RFC 3526 2048-bit safe prime (the group is re-checked at test time via Miller-Rabin,
    so a bad constant fails loudly). 12/12 tests: correctness, soundness (the strongest witness-free

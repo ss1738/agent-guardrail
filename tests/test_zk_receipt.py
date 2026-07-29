@@ -8,10 +8,10 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail import ec
-from agent_guardrail import zk as _zk
-from agent_guardrail import zk_ec as _zk_ec
-from agent_guardrail.control_plane import (
+from qedra import ec
+from qedra import zk as _zk
+from qedra import zk_ec as _zk_ec
+from qedra.control_plane import (
     GENESIS,
     ControlPlane,
     Policy,
@@ -20,7 +20,7 @@ from agent_guardrail.control_plane import (
     _signing_payload,
     verify_receipt,
 )
-from agent_guardrail.guardrail import Action
+from qedra.guardrail import Action
 
 POLICY = Policy("zk-test-policy", "1")
 

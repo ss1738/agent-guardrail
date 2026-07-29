@@ -7,8 +7,8 @@ the verdict is correct WITHOUT ever seeing the action, and a forged verdict is s
 
     python3 demo_zk.py
 """
-from agent_guardrail.guardrail import Action
-from agent_guardrail import zk
+from qedra.guardrail import Action
+from qedra import zk
 
 
 def line(c="-"):

@@ -9,7 +9,7 @@ import sys
 import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.guardrail import Guardrail, Action
+from qedra.guardrail import Guardrail, Action
 from realworld_test import extract_run_commands, list_workflows, fetch_raw  # reuse
 
 LANGS = ["rust", "python", "javascript", "typescript", "go", "cpp", "java", "ruby", "shell"]

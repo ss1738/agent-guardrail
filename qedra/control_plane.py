@@ -1,6 +1,6 @@
 """Agent Control Plane: per-agent policy enforcement + an independently-verifiable RECEIPT.
 
-agent-guardrail gates a single stream of tool calls. The Control Plane binds a *named, versioned
+qedra gates a single stream of tool calls. The Control Plane binds a *named, versioned
 policy* to an *agent identity*, records the gated action trace into a public hash-chain, and exports a
 compact **receipt** that a third party (an auditor, a bank, an insurer) can verify WITHOUT trusting the
 operator, and WITHOUT the operator's secret:

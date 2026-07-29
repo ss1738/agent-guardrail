@@ -1,4 +1,4 @@
-"""`agent-guardrail-policy`: author + inspect a PolicySpec. Tests init (stdout + file), hash, show
+"""`qedra-policy`: author + inspect a PolicySpec. Tests init (stdout + file), hash, show
 (with the policy root), regex validation, and that the hash the tool prints is the one a receipt binds."""
 import io
 import os
@@ -7,9 +7,9 @@ import tempfile
 from contextlib import redirect_stdout
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail import policy_cli
-from agent_guardrail.control_plane import Policy
-from agent_guardrail.guardrail import PolicySpec
+from qedra import policy_cli
+from qedra.control_plane import Policy
+from qedra.guardrail import PolicySpec
 
 
 def _run(argv):

@@ -11,12 +11,12 @@ import urllib.request
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail.control_plane import (
+from qedra.control_plane import (
     GENESIS, ControlPlane, Policy, Receipt, _chain_step, _commit, _signing_payload,
 )
-from agent_guardrail.guardrail import Action
-from agent_guardrail.registry import Registry
-from agent_guardrail.verify_server import build_server
+from qedra.guardrail import Action
+from qedra.registry import Registry
+from qedra.verify_server import build_server
 
 POLICY = Policy("serve-test", "1")
 

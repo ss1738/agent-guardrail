@@ -8,7 +8,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-from agent_guardrail.control_plane import (
+from qedra.control_plane import (
     GENESIS,
     ControlPlane,
     Entry,
@@ -19,7 +19,7 @@ from agent_guardrail.control_plane import (
     _signing_payload,
     verify_receipt,
 )
-from agent_guardrail.guardrail import Action
+from qedra.guardrail import Action
 
 ALLOWED = [
     Action("git", op="status"),
@@ -159,8 +159,8 @@ def test_executor_session_produces_verifiable_receipt():
     """End-to-end: a real gated agent session emits a receipt an independent party can verify."""
     import tempfile
 
-    from agent_guardrail.executor import Executor
-    from agent_guardrail.guardrail import Guardrail
+    from qedra.executor import Executor
+    from qedra.guardrail import Guardrail
 
     ws = tempfile.mkdtemp()
     key = Ed25519PrivateKey.generate()
@@ -191,7 +191,7 @@ def test_verify_cli():
     """The relying-party CLI: exit 0 on a good receipt, 1 on a forged one."""
     import tempfile
 
-    from agent_guardrail import verify_cli
+    from qedra import verify_cli
 
     key = Ed25519PrivateKey.generate()
     r = run(ALLOWED + BLOCKED, key=key).receipt()
@@ -219,8 +219,8 @@ def test_registry_binds_agent_identity():
 
     from cryptography.hazmat.primitives import serialization
 
-    from agent_guardrail import verify_cli
-    from agent_guardrail.registry import Registry
+    from qedra import verify_cli
+    from qedra.registry import Registry
 
     def pub(k):
         return k.public_key().public_bytes(
@@ -301,7 +301,7 @@ def test_redact_cli_and_witness_verify():
     witness (full soundness)."""
     import tempfile
 
-    from agent_guardrail import redact_cli, verify_cli
+    from qedra import redact_cli, verify_cli
 
     key = Ed25519PrivateKey.generate()
     r = run(ALLOWED + BLOCKED, key=key).receipt()

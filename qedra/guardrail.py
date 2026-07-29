@@ -33,7 +33,7 @@ class PolicySpec:
     protected_branches: tuple[str, ...] = PROTECTED
     extra_secret_patterns: tuple[str, ...] = ()      # extra regexes flagged as secrets (org tokens)
     extra_shell_denylist: tuple[str, ...] = ()       # extra regexes blocked outright in shell
-    ruleset_version: str = "agent-guardrail/threat-model/v1"   # bump when the built-in rules change
+    ruleset_version: str = "qedra/threat-model/v1"   # bump when the built-in rules change
 
     def canonical(self) -> str:
         return json.dumps({
@@ -125,7 +125,7 @@ class Decision:
 
 
 class Guardrail:
-    def __init__(self, spec: PolicySpec = DEFAULT_SPEC, hmac_key: bytes = b"agent-guardrail-v0"):
+    def __init__(self, spec: PolicySpec = DEFAULT_SPEC, hmac_key: bytes = b"qedra-v0"):
         self.spec = spec
         self._protected = tuple(spec.protected_branches)
         self._extra_secret = [re.compile(p) for p in spec.extra_secret_patterns]

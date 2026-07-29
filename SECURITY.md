@@ -2,7 +2,7 @@
 
 ## Scope and honest expectations
 
-agent-guardrail is an action-level gate for coding agents with a formally checked
+qedra is an action-level gate for coding agents with a formally checked
 git-branch core and heuristic enforcement of the rest of its threat model (see
 [THREAT_MODEL.md](THREAT_MODEL.md)). It is defense in depth, not a sandbox. The
 heuristic rules (shell, secret, CI) are intentionally bypassable by obfuscation and

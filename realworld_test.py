@@ -13,7 +13,7 @@ import subprocess
 import sys
 
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-from agent_guardrail.guardrail import Guardrail, Action
+from qedra.guardrail import Guardrail, Action
 
 TRUSTED = [
     "rust-lang/rust", "tokio-rs/tokio", "BurntSushi/ripgrep", "serde-rs/serde",

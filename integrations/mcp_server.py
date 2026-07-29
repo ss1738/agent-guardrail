@@ -1,14 +1,14 @@
 """Backward-compatible shim.
 
-The MCP server now lives in the package as ``agent_guardrail.mcp_server``. Prefer the
-console script after ``pip install 'agent-guardrail[mcp]'``:
+The MCP server now lives in the package as ``qedra.mcp_server``. Prefer the
+console script after ``pip install 'qedra[mcp]'``:
 
-    agent-guardrail-mcp
+    qedra-mcp
 
 or in an MCP client config:
 
-    "agent-guardrail": {
-      "command": "agent-guardrail-mcp",
+    "qedra": {
+      "command": "qedra-mcp",
       "env": {"GUARDRAIL_WORKSPACE": "/path/to/your/repo"}
     }
 
@@ -18,7 +18,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from agent_guardrail.mcp_server import build_server, main  # noqa: E402
+from qedra.mcp_server import build_server, main  # noqa: E402
 
 # Exposed so an MCP client can also import this module and access `mcp` directly.
 mcp = None

@@ -40,7 +40,7 @@ parts = [
     f'<rect x="10" y="10" width="{W-20}" height="46" rx="14" fill="#f6f8fa"/>',
     '<rect x="10" y="40" width="%d" height="16" fill="#f6f8fa"/>' % (W-20),
     '<circle cx="34" cy="33" r="6" fill="#ff5f57"/><circle cx="54" cy="33" r="6" fill="#febc2e"/><circle cx="74" cy="33" r="6" fill="#28c840"/>',
-    f'<text x="{W//2}" y="38" text-anchor="middle" font-size="15" fill="{MUTED}">agent-guardrail</text>',
+    f'<text x="{W//2}" y="38" text-anchor="middle" font-size="15" fill="{MUTED}">qedra</text>',
     # subtitle line
     f'<text x="30" y="86" font-size="16" fill="{INK}">A hijacked coding agent tries to wreck the repo. The gate blocks it, live.</text>',
 ]
