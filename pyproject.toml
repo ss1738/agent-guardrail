@@ -13,6 +13,7 @@ mcp = ["mcp>=1.0"]
 
 [project.scripts]
 qedra-verify = "qedra.verify_cli:main"
+qedra-attest = "qedra.attest_cli:main"
 qedra-redact = "qedra.redact_cli:main"
 qedra-policy = "qedra.policy_cli:main"
 qedra-serve = "qedra.verify_server:main"
