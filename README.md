@@ -7,7 +7,7 @@
   <img src="docs/demo.svg" alt="A hijacked coding agent tries to force-push main, rm -rf the repo, leak a secret and wipe CI; qedra blocks every one while the real fix goes through" width="760">
 </p>
 
-A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell`, `write_file`, and `git` call is checked before it executes. It blocks the actions that wreck a repository (force-pushing `main`, `rm -rf` on the working tree, exfiltrating a secret, wiping CI) and lets normal build and commit work through, without trusting the agent to behave.
+A runtime gate for autonomous coding agents. It runs as an [MCP](https://modelcontextprotocol.io) server in the tool-call path between the agent and your repo, so every `run_shell`, `write_file`, and `git` call is checked before it executes. It blocks the actions that wreck a repository or a machine (force-pushing `main`, `rm -rf` on the working tree, exfiltrating a secret, wiping CI, stealing cloud credentials from the metadata endpoint, opening a reverse shell, or -- opt-in -- tearing down cloud/database infrastructure) and lets normal build and commit work through, without trusting the agent to behave.
 
 Its git-branch sub-policy is machine-checked by z3, so the policy can find its own gaps. That is a property almost no guardrail has. Everything else is high-precision heuristics, and this README says which is which.
 
@@ -59,8 +59,11 @@ This is stated up front because it is the point of the project:
 | Threat | How it is enforced | Guarantee |
 |---|---|---|
 | Force-push / hard-reset / rebase of a protected branch | structured git policy | **machine-checked by z3** (see below) |
-| `rm -rf` of the repo / home / root | regex over the command | heuristic, high-precision, bypassable by obfuscation |
-| Secret written to disk or exfiltrated over the network | regex (secret shape + sink) | heuristic |
+| `rm -rf` of the repo / home / root, fork bomb, raw block-device write | regex over the command | heuristic, high-precision, bypassable by obfuscation |
+| Secret written to disk or exfiltrated over the network **or DNS** (incl. DNS tunneling); shapes cover modern provider keys (`sk-proj-`, `sk-ant-`), AWS, GitHub, private keys | regex (secret shape + sink) | heuristic |
+| Cloud metadata (IMDS) credential theft (`curl 169.254.169.254/...`) | regex, fetch-context scoped | heuristic, high-precision |
+| Reverse shells / backdoor persistence (`>& /dev/tcp`, `nc -e`, `authorized_keys`, `sudoers`, cron) | regex | heuristic, high-precision |
+| Catastrophic infra/data destruction — cloud/k8s teardown, DB drops, cache flush (**opt-in `devops` preset**) | opt-in regex denylist | heuristic, high-precision, off by default |
 | Emptying a CI workflow file | path + content check | heuristic |
 | Everything else a build/test agent does | default allow | not policed (by design) |
 
