@@ -22,6 +22,8 @@ Configuration is entirely by environment variable, so one install serves every r
   GUARDRAIL_WORKSPACE   repo the agent operates on (default: ./workspace)
   GUARDRAIL_AGENT_ID    agent identity bound into the receipt (default: agent)
   GUARDRAIL_POLICY_ID   committed policy name (default: default-policy)
+  GUARDRAIL_PRESET      comma-separated opt-in presets, e.g. 'devops' (cloud/DB kill-commands)
+  GUARDRAIL_POLICY_SPEC path to a PolicySpec JSON (protected branches, extra patterns)
   GUARDRAIL_SIGNING_KEY hex 32-byte Ed25519 seed to pin one identity across runs
   GUARDRAIL_AUDIT_LOG   path to stream every gated action to disk (survives a crash)
   GUARDRAIL_ALERT_URL   Slack-compatible webhook fired on every block
@@ -66,8 +68,13 @@ def build_server():
     zk_env = os.environ.get("GUARDRAIL_ZK", "").lower()
     zk = zk_env if zk_env in ("modp", "ec") else (zk_env in ("1", "true", "yes"))
 
-    guard = Guardrail()
-    policy = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"))
+    # One spec from the environment (default threat model + optional PolicySpec file + opt-in presets),
+    # used for BOTH the enforcing gate and the receipt's committed policy, so what is blocked and what the
+    # receipt commits to are the same ruleset. Reuses the hook's loader so the two integrations agree.
+    from qedra.claude_code_hook import _load_policy_spec
+    spec = _load_policy_spec()
+    guard = Guardrail(spec)
+    policy = Policy(os.environ.get("GUARDRAIL_POLICY_ID", "default-policy"), spec=spec)
     audit = AuditLog(os.environ["GUARDRAIL_AUDIT_LOG"]) if os.environ.get("GUARDRAIL_AUDIT_LOG") else None
     alert = webhook_alert(os.environ["GUARDRAIL_ALERT_URL"]) if os.environ.get("GUARDRAIL_ALERT_URL") else None
     control = ControlPlane(agent_id, policy, signing_key=_signing_key(), zk=zk, audit_log=audit, on_block=alert)
@@ -99,6 +106,20 @@ def build_server():
         return json.dumps({"chain_verifies": guard.verify_chain(),
                            "blocked": ex.blocked, "executed": ex.executed,
                            "log": guard.log}, indent=2)
+
+    @mcp.tool()
+    def policy_info() -> str:
+        """Report the exact ruleset being enforced: the committed policy id and root (content hash), the
+        protected branches, and any opt-in presets/extra patterns. A relying party can hold the same spec
+        and confirm the receipt's policy root matches, so 'the gate enforces this policy' is checkable,
+        not a promise."""
+        return json.dumps({
+            "policy_id": policy.policy_id, "version": policy.version, "policy_root": policy.root(),
+            "protected_branches": list(spec.protected_branches),
+            "presets": [p for p in os.environ.get("GUARDRAIL_PRESET", "").split(",") if p.strip()],
+            "extra_shell_denylist": len(spec.extra_shell_denylist),
+            "extra_secret_patterns": len(spec.extra_secret_patterns),
+        }, indent=2)
 
     @mcp.tool()
     def session_receipt(redact: bool = False) -> str:
