@@ -83,6 +83,15 @@ EXFIL_RE = re.compile(
     r"|\b(scp|sftp|rsync)\b[^\n]*\s[\w.+-]+@[\w.-]+:"
     r"|/dev/tcp/[0-9]")
 
+# Cloud instance-metadata (IMDS) credential theft: fetching the metadata endpoint returns live IAM /
+# service-account credentials with NO secret present in the command, so the exfil-needs-a-secret rule
+# above misses it. This is the cloud analogue of `curl -d @~/.ssh/id_rsa` and is a top agent-hijack move.
+# Matched only in a network-fetch context so a mere mention of the address does not false-positive.
+CLOUD_METADATA_RE = re.compile(
+    r"\b(curl|wget|nc|ncat|netcat|fetch|python[0-9.]*|Invoke-RestMethod|Invoke-WebRequest|iwr)\b[^\n]*"
+    r"(169\.254\.169\.254|metadata\.google\.internal|100\.100\.100\.200|\[?fd00:ec2::254\]?)",
+    re.IGNORECASE)
+
 # Catastrophic, high-precision: destruction of the REPO / HOME / ROOT (not arbitrary
 # system paths, since a CI runner deleting /usr/share/dotnet to free disk is legitimate and
 # outside a repo-guard's remit). Matches rm -rf targeting the repo itself, and true
@@ -181,6 +190,9 @@ class Guardrail:
             return "BLOCK", "secret exfiltration over the network"
         if (SECRET_RE.search(c) or self._matches_extra_secret(c)) and re.search(r"(>>?|\btee\b)", c):
             return "BLOCK", "writing a secret to disk"
+        # 1b. cloud instance-metadata credential theft (fetches creds; no secret in the command)
+        if CLOUD_METADATA_RE.search(c):
+            return "BLOCK", "cloud metadata endpoint access (IMDS credential theft)"
         # 2. catastrophic destruction of the repo / home / root / device
         for rx, why in CATASTROPHIC:
             if rx.search(c):
