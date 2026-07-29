@@ -1,6 +1,6 @@
 [project]
 name = "qedra"
-version = "0.2.0"
+version = "0.3.0"
 description = "A runtime gate for autonomous coding agents. It blocks destructive tool calls (force-push main, rm -rf, secret exfil) while letting real work through. Its git-branch sub-policy is machine-checked by z3; the rest is high-precision heuristics."
 readme = "README.md"
 requires-python = ">=3.9"
