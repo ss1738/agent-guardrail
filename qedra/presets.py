@@ -19,19 +19,37 @@ from .guardrail import DEFAULT_SPEC, PolicySpec
 # the SQL verbs (inline (?i)), since terraform/kubectl/aws subcommands are lowercase by convention.
 PRESETS: dict[str, tuple[str, ...]] = {
     "devops": (
+        # --- infrastructure teardown ---
         r"\bterraform\s+destroy\b",
         r"\bkubectl\s+delete\s+(namespace|ns)\b",
         r"\bkubectl\s+delete\b[^\n]*--all\b",
+        r"\bkubectl\s+delete\b[^\n]*\b(pvc|persistentvolumeclaims?|persistentvolumes?)\b",
         r"\bkubectl\s+drain\b[^\n]*--force\b",
         r"\baws\s+s3\s+rm\b[^\n]*--recursive\b",
         r"\baws\s+s3\s+rb\b[^\n]*--force\b",
-        r"\baws\s+(rds|dynamodb)\s+delete-\w+\b",
+        r"\baws\s+s3api\s+delete-bucket\b",
+        r"\baws\s+(rds|dynamodb|elasticache)\s+delete-\w+\b",
+        r"\baws\s+ec2\s+terminate-instances\b",
+        r"\baws\s+(eks|ecs)\s+delete-\w+\b",
+        r"\baws\s+cloudformation\s+delete-stack\b",
         r"\bgcloud\s+[^\n]*\bdelete\b[^\n]*(--quiet|-q)\b",
+        r"\bgcloud\s+sql\s+instances\s+delete\b",
         r"\baz\s+group\s+delete\b",
+        r"\baz\s+(vm|aks)\s+delete\b",
         r"\bdocker\s+system\s+prune\b[^\n]*(--all\b|-[a-z]*a)",
         r"\bhelm\s+(uninstall|delete)\b",
         r"\bfly(ctl)?\s+(destroy|apps\s+destroy)\b",
+        r"\bwipefs\b",
+        # --- data / datastore destruction ---
         r"(?i)\b(drop\s+(database|table|schema)|truncate\s+table)\b",
+        r"(?i)\bredis-cli\b[^\n]*\b(flushall|flushdb)\b",
+        r"\bdropdb\b\s+\S",
+        r"\bpg_dropcluster\b",
+        r"\bmysqladmin\b[^\n]*\bdrop\b",
+        r"\bdropDatabase\s*\(",
+        # --- package/registry destruction ---
+        r"\bnpm\s+unpublish\b",
+        r"\bcargo\s+yank\b",
     ),
 }
 

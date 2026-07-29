@@ -27,7 +27,22 @@ def test_devops_blocks_catastrophic_infra():
                 "fly apps destroy myapp",
                 "psql -c 'DROP DATABASE production'",
                 "mysql -e 'drop table users'",
-                "psql -c 'TRUNCATE TABLE orders'"]:
+                "psql -c 'TRUNCATE TABLE orders'",
+                # broadened infra/data coverage (LTFF M1)
+                "kubectl delete pvc data-postgres-0 -n prod",
+                "aws ec2 terminate-instances --instance-ids i-0abc123",
+                "aws eks delete-cluster --name prod",
+                "aws cloudformation delete-stack --stack-name prod",
+                "aws s3api delete-bucket --bucket prod-data",
+                "gcloud sql instances delete prod-db",
+                "az vm delete --name prod --yes",
+                "redis-cli -h prod FLUSHALL",
+                "dropdb production",
+                "mysqladmin -u root drop appdb",
+                "mongo --eval 'db.dropDatabase()'",
+                "npm unpublish my-pkg --force",
+                "cargo yank --vers 1.0.0 my-crate",
+                "wipefs -a /dev/sda"]:
         assert v(g, cmd) == "BLOCK", cmd
 
 
@@ -37,7 +52,14 @@ def test_devops_allows_the_benign_equivalents():
                 "kubectl get pods", "kubectl apply -f deploy.yaml", "kubectl delete pod one-pod",
                 "aws s3 ls", "aws s3 cp a.txt s3://bucket/", "aws rds describe-db-instances",
                 "docker ps", "docker build -t app .", "helm install app ./chart",
-                "psql -c 'SELECT * FROM users'", "cargo test --all", 'git commit -m "fix"']:
+                "psql -c 'SELECT * FROM users'", "cargo test --all", 'git commit -m "fix"',
+                # benign equivalents of the broadened coverage (must NOT false-block)
+                "kubectl get pvc", "kubectl describe pv data-vol",
+                "aws ec2 describe-instances", "aws eks list-clusters",
+                "aws s3api list-buckets", "gcloud sql instances list", "az vm list",
+                "redis-cli GET session:42", "redis-cli ping",
+                "createdb staging", "mysqladmin status", "mongo --eval 'db.stats()'",
+                "npm publish", "cargo build --release", "cargo publish --dry-run"]:
         assert v(g, cmd) == "ALLOW", cmd
 
 
