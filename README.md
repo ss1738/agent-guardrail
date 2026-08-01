@@ -140,6 +140,7 @@ gate drops in with no framework code:
 ```bash
 pip install qedra
 qedra-hook --print-config      # prints the .claude/settings.json block to paste
+./claude-integration.sh        # see it first: a hijacked Claude Code session gated live, receipt verified, forgery caught (~1s, no API key)
 ```
 
 Paste that block into `.claude/settings.json` and every `Bash` call is classified by the same gate the
@@ -253,6 +254,7 @@ python3 tests/test_policy_spec.py          # 11 tests (configurable, content-add
 python3 tests/test_policy_cli.py           # 6 tests (the policy authoring CLI)
 python3 demo_compare.py                    # with and without the gate, on a real repo
 python3 demo_receipt.py                    # a verifiable receipt: issued, verified, and a forgery caught
+python3 demo_claude_hook.py                # a hijacked Claude Code session through the REAL PreToolUse hook: attacks blocked, receipt verified, forgery caught (no API key)
 python3 integrations/demo_mcp.py           # the gate in a real MCP tool-call path
 python3 integrations/demo_function_calling.py   # the gate in a plain OpenAI/Anthropic tool-calling loop
 python3 realworld_test.py                  # the 2,836-command friction check (needs gh)
